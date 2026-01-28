@@ -18,14 +18,15 @@ from services.ml_inference.helper import (
 from services.ml_inference.config import InferenceConfig
 from services.ml_inference.models import PostToLabelModel
 
+
 # Create a mock datetime class that supports subtraction
 class MockDateTime:
     def __init__(self, dt):
         self.dt = dt
-        
+
     def strftime(self, fmt):
         return self.dt.strftime(fmt)
-        
+
     def __sub__(self, other):
         if isinstance(other, datetime):
             return MockDateTime(self.dt - other)
@@ -36,6 +37,10 @@ class MockDateTime:
 def mock_queue():
     """Create a mock queue for testing."""
     with patch("services.ml_inference.helper.Queue") as mock:
+        # Default: claim everything requested (simplifies most tests).
+        mock.return_value.batch_claim_items_by_ids.side_effect = lambda ids: [
+            Mock(id=i) for i in ids
+        ]
         yield mock.return_value
 
 
@@ -62,7 +67,7 @@ class TestGetPostsToClassify:
                 "created_at": "2024-01-01",
                 "preprocessing_timestamp": "2024-01-01-12:00:00",
                 "batch_id": 1,
-                "batch_metadata": json.dumps({"source": "test"})
+                "batch_metadata": json.dumps({"source": "test"}),
             }
         ]
         result = get_posts_to_classify("perspective_api")
@@ -79,22 +84,22 @@ class TestGetPostsToClassify:
                 "text": "first version",
                 "preprocessing_timestamp": "2024-01-01-12:00:00",
                 "batch_id": 1,
-                "batch_metadata": json.dumps({"source": "test"})
+                "batch_metadata": json.dumps({"source": "test"}),
             },
             {
                 "uri": "test1",
                 "text": "second version",
                 "preprocessing_timestamp": "2024-01-01-12:00:00",
                 "batch_id": 1,
-                "batch_metadata": json.dumps({"source": "test"})
+                "batch_metadata": json.dumps({"source": "test"}),
             },
             {
                 "uri": "test2",
                 "text": "unique post",
                 "preprocessing_timestamp": "2024-01-01-12:00:00",
                 "batch_id": 2,
-                "batch_metadata": json.dumps({"source": "test"})
-            }
+                "batch_metadata": json.dumps({"source": "test"}),
+            },
         ]
         result = get_posts_to_classify("perspective_api")
         assert len(result) == 2
@@ -109,29 +114,29 @@ class TestGetPostsToClassify:
                 "text": "",
                 "preprocessing_timestamp": "2024-01-01-12:00:00",
                 "batch_id": 1,
-                "batch_metadata": json.dumps({"source": "test"})
+                "batch_metadata": json.dumps({"source": "test"}),
             },  # Empty text
             {
                 "uri": "test2",
                 "text": "a",
                 "preprocessing_timestamp": "2024-01-01-12:00:00",
                 "batch_id": 2,
-                "batch_metadata": json.dumps({"source": "test"})
+                "batch_metadata": json.dumps({"source": "test"}),
             },  # Too short
             {
                 "uri": "test3",
                 "text": "valid post",
                 "preprocessing_timestamp": None,
                 "batch_id": 3,
-                "batch_metadata": json.dumps({"source": "test"})
+                "batch_metadata": json.dumps({"source": "test"}),
             },  # Missing timestamp
             {
                 "uri": "test4",
                 "text": "valid post",
                 "preprocessing_timestamp": "2024-01-01-12:00:00",
                 "batch_id": 4,
-                "batch_metadata": json.dumps({"source": "test"})
-            }  # Valid
+                "batch_metadata": json.dumps({"source": "test"}),
+            },  # Valid
         ]
         result = get_posts_to_classify("perspective_api")
         assert len(result) == 1
@@ -146,10 +151,19 @@ class TestGetPostsToClassify:
                 "preprocessing_timestamp": "2024-01-01-12:00:00",
                 "batch_id": 1,
                 "batch_metadata": json.dumps({"source": "test"}),
-                "extra_field": "should not appear"
+                "extra_field": "should not appear",
             }
         ]
-        result = get_posts_to_classify("perspective_api", columns=["uri", "text", "preprocessing_timestamp", "batch_id", "batch_metadata"])
+        result = get_posts_to_classify(
+            "perspective_api",
+            columns=[
+                "uri",
+                "text",
+                "preprocessing_timestamp",
+                "batch_id",
+                "batch_metadata",
+            ],
+        )
         assert len(result) == 1
         assert result[0].uri == "test1"
         assert result[0].text == "test post"
@@ -161,10 +175,9 @@ class TestGetPostsToClassify:
     def test_previous_metadata_handling(self, mock_queue):
         """Test using previous run metadata."""
         metadata = {
-            "metadata": json.dumps({
-                "latest_id_classified": 123,
-                "inference_timestamp": "2024-01-01"
-            })
+            "metadata": json.dumps(
+                {"latest_id_classified": 123, "inference_timestamp": "2024-01-01"}
+            )
         }
         mock_queue.load_dict_items_from_queue.return_value = [
             {
@@ -172,38 +185,135 @@ class TestGetPostsToClassify:
                 "text": "test post",
                 "preprocessing_timestamp": "2024-01-01-12:00:00",
                 "batch_id": 1,
-                "batch_metadata": json.dumps({"source": "test"})
+                "batch_metadata": json.dumps({"source": "test"}),
             }
         ]
         get_posts_to_classify("perspective_api", previous_run_metadata=metadata)
         mock_queue.load_dict_items_from_queue.assert_called_once_with(
-            limit=None,
-            min_id=123,
-            min_timestamp="2024-01-01",
-            status="pending"
+            limit=None, min_id=123, min_timestamp="2024-01-01", status="pending"
         )
 
     def test_timestamp_override(self, mock_queue):
         """Test timestamp parameter overrides metadata timestamp."""
         metadata = {
-            "metadata": json.dumps({
-                "latest_id_classified": 123,
-                "inference_timestamp": "2024-01-01"
-            })
+            "metadata": json.dumps(
+                {"latest_id_classified": 123, "inference_timestamp": "2024-01-01"}
+            )
         }
         override_timestamp = "2023-12-31"
         mock_queue.load_dict_items_from_queue.return_value = []
         get_posts_to_classify(
             "perspective_api",
             timestamp=override_timestamp,
-            previous_run_metadata=metadata
+            previous_run_metadata=metadata,
         )
         mock_queue.load_dict_items_from_queue.assert_called_once_with(
-            limit=None,
-            min_id=123,
-            min_timestamp=override_timestamp,
-            status="pending"
+            limit=None, min_id=123, min_timestamp=override_timestamp, status="pending"
         )
+
+    def test_only_returns_posts_from_claimed_batches(self, mock_queue):
+        """Test that only posts whose batch_id is successfully claimed are returned."""
+        # Arrange: two batches returned by queue read
+        mock_queue.load_dict_items_from_queue.return_value = [
+            {
+                "uri": "uri_1",
+                "text": "valid post one",
+                "preprocessing_timestamp": "2024-01-01-12:00:00",
+                "batch_id": 1,
+                "batch_metadata": "{}",
+            },
+            {
+                "uri": "uri_2",
+                "text": "valid post two",
+                "preprocessing_timestamp": "2024-01-01-12:00:00",
+                "batch_id": 2,
+                "batch_metadata": "{}",
+            },
+        ]
+        # Simulate a race where only batch 1 was claimed by this worker
+        mock_queue.batch_claim_items_by_ids.side_effect = None
+        mock_queue.batch_claim_items_by_ids.return_value = [Mock(id=1)]
+
+        # Act
+        result = get_posts_to_classify("perspective_api")
+
+        # Assert
+        assert [p.batch_id for p in result] == [1]
+
+    def test_consecutive_calls_do_not_return_overlapping_batches(self, mock_queue):
+        """Simulate two workers: consecutive calls should return disjoint batch IDs."""
+        # Arrange: first call sees batches 1 and 2; second call sees batch 3.
+        mock_queue.load_dict_items_from_queue.side_effect = [
+            [
+                {
+                    "uri": "uri_1",
+                    "text": "valid post one",
+                    "preprocessing_timestamp": "2024-01-01-12:00:00",
+                    "batch_id": 1,
+                    "batch_metadata": "{}",
+                },
+                {
+                    "uri": "uri_2",
+                    "text": "valid post two",
+                    "preprocessing_timestamp": "2024-01-01-12:00:00",
+                    "batch_id": 2,
+                    "batch_metadata": "{}",
+                },
+            ],
+            [
+                {
+                    "uri": "uri_3",
+                    "text": "valid post three",
+                    "preprocessing_timestamp": "2024-01-01-12:00:00",
+                    "batch_id": 3,
+                    "batch_metadata": "{}",
+                }
+            ],
+        ]
+
+        # Act
+        first = get_posts_to_classify("perspective_api")
+        second = get_posts_to_classify("perspective_api")
+
+        # Assert
+        first_batches = {p.batch_id for p in first}
+        second_batches = {p.batch_id for p in second}
+        assert first_batches.isdisjoint(second_batches)
+
+    def test_max_records_per_run_claims_only_complete_batches(self, mock_queue):
+        """Test that max_records_per_run is applied before claiming (complete batches only)."""
+        # Arrange: two batches of 3 posts each, in order (batch 1 then batch 2)
+        payloads = []
+        for i in range(3):
+            payloads.append(
+                {
+                    "uri": f"uri_batch1_{i}",
+                    "text": f"valid post batch1 {i}",
+                    "preprocessing_timestamp": "2024-01-01-12:00:00",
+                    "batch_id": 1,
+                    "batch_metadata": "{}",
+                }
+            )
+        for i in range(3):
+            payloads.append(
+                {
+                    "uri": f"uri_batch2_{i}",
+                    "text": f"valid post batch2 {i}",
+                    "preprocessing_timestamp": "2024-01-01-12:00:00",
+                    "batch_id": 2,
+                    "batch_metadata": "{}",
+                }
+            )
+        mock_queue.load_dict_items_from_queue.return_value = payloads
+
+        # Act: limit to 3 records; should include only batch 1 (complete batch)
+        result = get_posts_to_classify("perspective_api", max_records_per_run=3)
+
+        # Assert: claim only batch 1
+        mock_queue.batch_claim_items_by_ids.assert_called_once()
+        claimed_ids = set(mock_queue.batch_claim_items_by_ids.call_args.kwargs["ids"])
+        assert claimed_ids == {1}
+        assert {p.batch_id for p in result} == {1}
 
 
 class TestOrchestrateClassification:
@@ -224,7 +334,7 @@ class TestOrchestrateClassification:
         ]
 
     def test_max_records_per_run_limits_posts_correctly(self, sample_posts):
-        """Test that max_records_per_run slices posts before calling classification function."""
+        """Test that max_records_per_run is passed to get_posts_to_classify."""
         # Arrange
         classification_func = Mock(return_value={"ok": True})
         config = InferenceConfig(
@@ -233,13 +343,16 @@ class TestOrchestrateClassification:
             classification_func=classification_func,
         )
 
-        with patch(
-            "services.ml_inference.helper.determine_backfill_latest_timestamp",
-            return_value=None,
-        ), patch(
-            "services.ml_inference.helper.get_posts_to_classify",
-            return_value=sample_posts,
+        with (
+            patch(
+                "services.ml_inference.helper.determine_backfill_latest_timestamp",
+                return_value=None,
+            ),
+            patch(
+                "services.ml_inference.helper.get_posts_to_classify"
+            ) as mock_get_posts,
         ):
+            mock_get_posts.return_value = sample_posts[:2]
             # Act
             result = orchestrate_classification(
                 config=config,
@@ -248,12 +361,12 @@ class TestOrchestrateClassification:
 
         # Assert
         assert result.total_classified_posts == 2
+        mock_get_posts.assert_called_once()
+        assert mock_get_posts.call_args.kwargs["max_records_per_run"] == 2
         classification_func.assert_called_once()
-        call_kwargs = classification_func.call_args.kwargs
-        assert len(call_kwargs["posts"]) == 2
 
     def test_max_records_per_run_none_processes_all_posts(self, sample_posts):
-        """Test that max_records_per_run=None leaves the post list unchanged."""
+        """Test that max_records_per_run=None is passed through and all posts are processed."""
         # Arrange
         classification_func = Mock(return_value={"ok": True})
         config = InferenceConfig(
@@ -262,18 +375,23 @@ class TestOrchestrateClassification:
             classification_func=classification_func,
         )
 
-        with patch(
-            "services.ml_inference.helper.determine_backfill_latest_timestamp",
-            return_value=None,
-        ), patch(
-            "services.ml_inference.helper.get_posts_to_classify",
-            return_value=sample_posts,
+        with (
+            patch(
+                "services.ml_inference.helper.determine_backfill_latest_timestamp",
+                return_value=None,
+            ),
+            patch(
+                "services.ml_inference.helper.get_posts_to_classify"
+            ) as mock_get_posts,
         ):
+            mock_get_posts.return_value = sample_posts
             # Act
             result = orchestrate_classification(config=config, max_records_per_run=None)
 
         # Assert
         assert result.total_classified_posts == 5
+        mock_get_posts.assert_called_once()
+        assert mock_get_posts.call_args.kwargs["max_records_per_run"] is None
         call_kwargs = classification_func.call_args.kwargs
         assert len(call_kwargs["posts"]) == 5
 
@@ -288,12 +406,15 @@ class TestOrchestrateClassification:
             empty_result_message="No posts to classify. Exiting...",
         )
 
-        with patch(
-            "services.ml_inference.helper.determine_backfill_latest_timestamp",
-            return_value=None,
-        ), patch(
-            "services.ml_inference.helper.get_posts_to_classify",
-            return_value=sample_posts,
+        with (
+            patch(
+                "services.ml_inference.helper.determine_backfill_latest_timestamp",
+                return_value=None,
+            ),
+            patch(
+                "services.ml_inference.helper.get_posts_to_classify",
+                return_value=[],
+            ),
         ):
             # Act
             result = orchestrate_classification(config=config, max_records_per_run=0)
@@ -312,19 +433,22 @@ class TestOrchestrateClassification:
             classification_func=classification_func,
         )
 
-        with patch(
-            "services.ml_inference.helper.determine_backfill_latest_timestamp",
-            return_value=None,
-        ), patch(
-            "services.ml_inference.helper.get_posts_to_classify",
-            return_value=sample_posts,
+        with (
+            patch(
+                "services.ml_inference.helper.determine_backfill_latest_timestamp",
+                return_value=None,
+            ),
+            patch(
+                "services.ml_inference.helper.get_posts_to_classify",
+                side_effect=ValueError("max_records_per_run must be >= 0"),
+            ),
         ):
             # Act & Assert
             with pytest.raises(ValueError, match="max_records_per_run must be >= 0"):
                 orchestrate_classification(config=config, max_records_per_run=-1)
 
-    def test_logs_when_limiting_occurs(self, sample_posts):
-        """Test that orchestration logs when it limits the number of posts."""
+    def test_passes_max_records_per_run_to_get_posts_to_classify(self, sample_posts):
+        """Test that orchestrate_classification passes max_records_per_run through."""
         # Arrange
         classification_func = Mock(return_value={"ok": True})
         config = InferenceConfig(
@@ -333,23 +457,22 @@ class TestOrchestrateClassification:
             classification_func=classification_func,
         )
 
-        with patch(
-            "services.ml_inference.helper.determine_backfill_latest_timestamp",
-            return_value=None,
-        ), patch(
-            "services.ml_inference.helper.get_posts_to_classify",
-            return_value=sample_posts,
-        ), patch(
-            "services.ml_inference.helper.logger"
-        ) as mock_logger:
+        with (
+            patch(
+                "services.ml_inference.helper.determine_backfill_latest_timestamp",
+                return_value=None,
+            ),
+            patch(
+                "services.ml_inference.helper.get_posts_to_classify"
+            ) as mock_get_posts,
+        ):
+            mock_get_posts.return_value = sample_posts[:2]
             # Act
             orchestrate_classification(config=config, max_records_per_run=2)
 
             # Assert
-            assert any(
-                "Limited posts from" in str(call.args[0])
-                for call in mock_logger.info.call_args_list
-            )
+            mock_get_posts.assert_called_once()
+            assert mock_get_posts.call_args.kwargs["max_records_per_run"] == 2
 
 
 class TestCapMaxRecordsForRun:
@@ -374,7 +497,7 @@ class TestCapMaxRecordsForRun:
         """Posts with different batch_ids."""
         return [
             PostToLabelModel(
-                uri=f"at://example/batch{i//2}_{i%2}",
+                uri=f"at://example/batch{i // 2}_{i % 2}",
                 text=f"post {i}",
                 preprocessing_timestamp="2024-01-01-12:00:00",
                 batch_id=i // 2,
@@ -479,7 +602,9 @@ class TestCapMaxRecordsForRun:
         batch_1_posts = [p for p in posts_mixed_batch_sizes if p.batch_id == 1]
         assert result == batch_1_posts
 
-    def test_includes_multiple_complete_batches_up_to_limit(self, posts_mixed_batch_sizes):
+    def test_includes_multiple_complete_batches_up_to_limit(
+        self, posts_mixed_batch_sizes
+    ):
         """Test includes multiple complete batches up to the limit."""
         # Arrange
         # Posts: batch 1 (3 posts), batch 2 (2 posts), batch 3 (3 posts)
@@ -696,7 +821,9 @@ class TestCapMaxRecordsForRun:
             log_calls = [str(call.args[0]) for call in mock_logger.info.call_args_list]
             assert any("complete batches" in call for call in log_calls)
             # Check that it mentions the batch count
-            batch_count_log = [call for call in log_calls if "complete batches" in call][0]
+            batch_count_log = [
+                call for call in log_calls if "complete batches" in call
+            ][0]
             assert "included" in batch_count_log
 
     def test_does_not_log_when_no_limiting_occurs(self, posts_single_batch):
