@@ -74,6 +74,8 @@ jobs:
           ml_tooling/perspective_api/tests \
           ml_tooling/ime/tests \
           ml_tooling/valence_classifier/tests \
+          pipelines/backfill_records_coordination/tests \
+          scripts/migrate_research_data_to_s3/tests \
           services/backfill/pds_backfills/core/tests \
           services/backfill/pds_backfills/storage/tests \
           services/ml_inference/tests \

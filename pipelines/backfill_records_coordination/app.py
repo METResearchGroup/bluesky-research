@@ -1,5 +1,6 @@
 """CLI app for triggering backfill of records and writing cache buffers."""
 
+import os
 from datetime import datetime
 
 import click
@@ -109,6 +110,12 @@ def validate_date_format(ctx, param, value):
     help="Duration of backfill period",
 )
 @click.option(
+    "--max-records-per-run",
+    type=int,
+    default=None,
+    help="Maximum number of records to process per integration run. If not provided, processes all available records.",
+)
+@click.option(
     "--write-cache-buffer-to-storage",
     is_flag=True,
     default=False,
@@ -156,6 +163,18 @@ def validate_date_format(ctx, param, value):
     help="End date for backfill (YYYY-MM-DD format, inclusive). If provided with start-date, only processes records within date range.",
 )
 @click.option(
+    "--sample-records",
+    is_flag=True,
+    default=False,
+    help="If set, sample records before enqueuing. Sampling is applied once and shared across integrations for a given run.",
+)
+@click.option(
+    "--sample-proportion",
+    type=float,
+    default=None,
+    help="Proportion of records to keep when --sample-records is set. Must be between 0 and 1 (inclusive).",
+)
+@click.option(
     "--clear-input-queues",
     is_flag=True,
     default=False,
@@ -167,6 +186,12 @@ def validate_date_format(ctx, param, value):
     default=False,
     help="Clear all output queues for specified integrations. Will prompt for confirmation.",
 )
+@click.option(
+    "--migrate-to-s3",
+    is_flag=True,
+    default=False,
+    help="Initialize migration tracker DB for integration-scoped prefixes and run migration to S3. Requires --integrations.",
+)
 def backfill_records(
     record_type: str | None,
     add_to_queue: bool,
@@ -175,14 +200,18 @@ def backfill_records(
     source_data_location: str,
     backfill_period: str | None,
     backfill_duration: int | None,
+    max_records_per_run: int | None,
     write_cache_buffer_to_storage: bool,
     service_source_buffer: str | None,
     clear_queue: bool,
     bypass_write: bool,
     start_date: str | None,
     end_date: str | None,
+    sample_records: bool,
+    sample_proportion: float | None,
     clear_input_queues: bool,
     clear_output_queues: bool,
+    migrate_to_s3: bool,
     _enqueue_service: EnqueueService | None = None,
     _integration_runner_service: IntegrationRunnerService | None = None,
     _cache_buffer_writer_service: CacheBufferWriterService | None = None,
@@ -212,6 +241,10 @@ def backfill_records(
         bypass_write=bypass_write,
         start_date=start_date,
         end_date=end_date,
+        max_records_per_run=max_records_per_run,
+        migrate_to_s3=migrate_to_s3,
+        sample_records=sample_records,
+        sample_proportion=sample_proportion,
     )
 
     if add_to_queue:
@@ -223,6 +256,8 @@ def backfill_records(
             integrations=mapped_integration_names,
             start_date=str(start_date),
             end_date=str(end_date),
+            sample_records=sample_records,
+            sample_proportion=sample_proportion,
         )
         enqueue_svc.enqueue_records(payload=enqueue_service_payload)
 
@@ -234,6 +269,7 @@ def backfill_records(
             mapped_integration_names=mapped_integration_names,
             backfill_period=backfill_period,
             backfill_duration=backfill_duration,
+            max_records_per_run=max_records_per_run,
         )
         integration_runner_svc.run_integrations(
             payload=integration_runner_service_payload
@@ -251,6 +287,46 @@ def backfill_records(
             cache_buffer_writer_svc.clear_cache(
                 integration_name=str(service_source_buffer)
             )
+
+    if migrate_to_s3:
+        _run_migrate_to_s3(mapped_integration_names=mapped_integration_names)
+
+
+def _run_migrate_to_s3(mapped_integration_names: list[str]) -> None:
+    """Initialize migration tracker for integration-scoped prefixes and run migration to S3."""
+    from lib.aws.s3 import S3
+    from scripts.migrate_research_data_to_s3.integration_prefixes import (
+        prefixes_for_integrations,
+    )
+    from scripts.migrate_research_data_to_s3.initialize_migration_tracker_db import (
+        initialize_migration_tracker_db,
+    )
+    from scripts.migrate_research_data_to_s3.migration_tracker import MigrationTracker
+    from scripts.migrate_research_data_to_s3.run_migration import (
+        run_migration_for_prefixes,
+    )
+
+    try:
+        prefixes = prefixes_for_integrations(mapped_integration_names)
+        if not prefixes:
+            logger.warning(
+                "No migration prefixes match integrations, skipping migration to S3."
+            )
+            return
+
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        db_dir = os.path.join(current_dir, ".migration_tracker")
+        os.makedirs(db_dir, exist_ok=True)
+        db_path = os.path.join(db_dir, "migration_tracker_backfill.db")
+
+        migration_tracker_db = MigrationTracker(db_path=db_path)
+        initialize_migration_tracker_db(prefixes, migration_tracker_db)
+
+        s3_client = S3(create_client_flag=True)
+        run_migration_for_prefixes(prefixes, migration_tracker_db, s3_client)
+    except Exception as e:
+        logger.error(f"Error migrating to S3: {e}")
+        raise e
 
 
 def manage_queue_clearing(
@@ -280,6 +356,7 @@ def _create_integration_runner_payload(
     mapped_integration_names: list[str],
     backfill_period: str | None,
     backfill_duration: int | None,
+    max_records_per_run: int | None,
 ) -> IntegrationRunnerServicePayload:
     """Creates an IntegrationRunnerServicePayload from integration names and backfill parameters.
 
@@ -306,6 +383,7 @@ def _create_integration_runner_payload(
             integration_name=integration_name,
             backfill_period=BackfillPeriod(integration_backfill_period),
             backfill_duration=integration_backfill_duration,
+            max_records_per_run=max_records_per_run,
         )
         for integration_name in mapped_integration_names
     ]
@@ -376,6 +454,10 @@ def run_validation_checks(
     bypass_write: bool,
     start_date: str | None,
     end_date: str | None,
+    max_records_per_run: int | None,
+    sample_records: bool = False,
+    sample_proportion: float | None = None,
+    migrate_to_s3: bool = False,
 ):
     """Validates CLI arguments and raises click.UsageError if invalid."""
     # Validate that record_type is provided when add_to_queue is True
@@ -386,6 +468,11 @@ def run_validation_checks(
     if run_integrations and (not integrations):
         raise click.UsageError(
             "--integrations is required when --run-integrations is used"
+        )
+
+    if migrate_to_s3 and (not integrations):
+        raise click.UsageError(
+            "--integrations is required when --migrate-to-s3 is used"
         )
 
     # Validate that add_to_queue requires both start_date and end_date
@@ -409,6 +496,23 @@ def run_validation_checks(
     if bypass_write and not (write_cache_buffer_to_storage and clear_queue):
         raise click.UsageError(
             "--bypass-write requires --write-cache-buffer-to-storage and --clear-queue"
+        )
+
+    # Validate max_records_per_run usage
+    if max_records_per_run is not None and max_records_per_run < 0:
+        raise click.UsageError("--max-records-per-run must be >= 0")
+
+    # Validate sampling flags
+    if add_to_queue and sample_records:
+        if sample_proportion is None:
+            raise click.UsageError(
+                "--sample-proportion is required when --sample-records is used"
+            )
+        if not (0.0 <= sample_proportion <= 1.0):
+            raise click.UsageError("--sample-proportion must be between 0 and 1")
+    if add_to_queue and (not sample_records) and (sample_proportion is not None):
+        raise click.UsageError(
+            "--sample-proportion is only valid when --sample-records is used"
         )
 
 

@@ -20,6 +20,9 @@ from services.ml_inference.models import (
     PostToLabelModel,
 )
 
+# Test timestamp constant for IntergroupLabelModel instances
+TEST_LABEL_TIMESTAMP = "2024-01-01-12:00:00"
+
 class TestRunBatchClassification:
     """Tests for run_batch_classification function."""
 
@@ -107,6 +110,7 @@ class TestRunBatchClassification:
             preprocessing_timestamp="2024-01-01-12:00:00",
             was_successfully_labeled=True,
             label=1,
+            label_timestamp=TEST_LABEL_TIMESTAMP,
         )
         successful_label_2 = IntergroupLabelModel(
             uri="uri_2",
@@ -114,6 +118,7 @@ class TestRunBatchClassification:
             preprocessing_timestamp="2024-01-01-12:00:00",
             was_successfully_labeled=True,
             label=0,
+            label_timestamp=TEST_LABEL_TIMESTAMP,
         )
 
         mock_classifier_instance = Mock()
@@ -166,6 +171,7 @@ class TestRunBatchClassification:
             was_successfully_labeled=False,
             label=-1,
             reason="API_ERROR",
+            label_timestamp=TEST_LABEL_TIMESTAMP,
         )
 
         mock_classifier_instance = Mock()
@@ -221,6 +227,7 @@ class TestRunBatchClassification:
             preprocessing_timestamp="2024-01-01-12:00:00",
             was_successfully_labeled=True,
             label=1,
+            label_timestamp=TEST_LABEL_TIMESTAMP,
         )
         failed_label = IntergroupLabelModel(
             uri="uri_2",
@@ -229,6 +236,7 @@ class TestRunBatchClassification:
             was_successfully_labeled=False,
             label=-1,
             reason="API_ERROR",
+            label_timestamp=TEST_LABEL_TIMESTAMP,
         )
 
         mock_classifier_instance = Mock()
@@ -287,6 +295,7 @@ class TestRunBatchClassification:
                 preprocessing_timestamp="2024-01-01-12:00:00",
                 was_successfully_labeled=True,
                 label=1,
+                label_timestamp=TEST_LABEL_TIMESTAMP,
             )
             for i in range(4)
         ]
@@ -344,6 +353,7 @@ class TestRunBatchClassification:
             preprocessing_timestamp="2024-01-01-12:00:00",
             was_successfully_labeled=True,
             label=1,
+            label_timestamp=TEST_LABEL_TIMESTAMP,
         )
 
         mock_classifier_instance = Mock()
@@ -391,6 +401,7 @@ class TestRunBatchClassification:
             preprocessing_timestamp="2024-01-01-12:00:00",
             was_successfully_labeled=True,
             label=1,
+            label_timestamp=TEST_LABEL_TIMESTAMP,
         )
 
         mock_classifier_instance = Mock()
@@ -449,6 +460,7 @@ class TestRunBatchClassification:
             preprocessing_timestamp="2024-01-01-12:00:00",
             was_successfully_labeled=True,
             label=1,
+            label_timestamp=TEST_LABEL_TIMESTAMP,
         )
         successful_label_2 = IntergroupLabelModel(
             uri="uri_2",
@@ -456,6 +468,7 @@ class TestRunBatchClassification:
             preprocessing_timestamp="2024-01-01-12:00:00",
             was_successfully_labeled=True,
             label=0,
+            label_timestamp=TEST_LABEL_TIMESTAMP,
         )
 
         mock_classifier_instance = Mock()
@@ -511,6 +524,7 @@ class TestRunBatchClassification:
             preprocessing_timestamp="2024-01-01-12:00:00",
             was_successfully_labeled=True,
             label=1,
+            label_timestamp=TEST_LABEL_TIMESTAMP,
         )
 
         mock_classifier_instance = Mock()
@@ -609,7 +623,8 @@ class TestManageFailedLabels:
                 was_successfully_labeled=False,
                 label=-1,
                 reason="API_ERROR",
-            )
+                label_timestamp=TEST_LABEL_TIMESTAMP,
+        )
             for i in range(label_count)
         ]
         uri_to_batch_id = {f"uri_{i}": uri_to_batch_id_start + i for i in range(label_count)}
@@ -662,6 +677,7 @@ class TestManageFailedLabels:
             was_successfully_labeled=False,
             reason="API_ERROR",
             label=-1,
+            label_timestamp=TEST_LABEL_TIMESTAMP,
         )
         failed_labels = [failed_label]
         uri_to_batch_id = {"uri_1": 999}
@@ -711,6 +727,7 @@ class TestManageFailedLabels:
             was_successfully_labeled=False,
             reason="API_ERROR",
             label=-1,
+            label_timestamp=TEST_LABEL_TIMESTAMP,
         )
         failed_labels = [failed_label]
         uri_to_batch_id = {"uri_1": 123}
@@ -757,6 +774,7 @@ class TestManageFailedLabels:
                 was_successfully_labeled=False,
                 reason="API_ERROR",
                 label=-1,
+                label_timestamp=TEST_LABEL_TIMESTAMP,
             )
             for i in range(2)
         ]
@@ -853,6 +871,7 @@ class TestManageSuccessfulLabels:
             preprocessing_timestamp="2024-01-01-12:00:00",
             was_successfully_labeled=True,
             label=1,
+            label_timestamp=TEST_LABEL_TIMESTAMP,
         )
         successful_labels = [successful_label]
         uri_to_batch_id = {"uri_1": 456}
@@ -902,6 +921,7 @@ class TestManageSuccessfulLabels:
                 preprocessing_timestamp="2024-01-01-12:00:00",
                 was_successfully_labeled=True,
                 label=i % 2,
+                label_timestamp=TEST_LABEL_TIMESTAMP,
             )
             for i in range(3)
         ]
@@ -953,6 +973,7 @@ class TestManageSuccessfulLabels:
             preprocessing_timestamp="2024-01-01-12:00:00",
             was_successfully_labeled=True,
             label=1,
+            label_timestamp=TEST_LABEL_TIMESTAMP,
         )
         successful_labels = [successful_label]
         uri_to_batch_id = {"uri_1": 777}
@@ -1000,6 +1021,7 @@ class TestManageSuccessfulLabels:
             preprocessing_timestamp="2024-01-01-12:00:00",
             was_successfully_labeled=True,
             label=1,
+            label_timestamp=TEST_LABEL_TIMESTAMP,
         )
         successful_labels = [successful_label]
         uri_to_batch_id = {"uri_1": 888}
@@ -1044,6 +1066,7 @@ class TestManageSuccessfulLabels:
                 preprocessing_timestamp="2024-01-01-12:00:00",
                 was_successfully_labeled=True,
                 label=i % 2,
+                label_timestamp=TEST_LABEL_TIMESTAMP,
             )
             for i in range(4)
         ]

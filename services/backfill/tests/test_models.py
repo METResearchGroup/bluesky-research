@@ -3,16 +3,20 @@
 import pytest
 from pydantic import ValidationError
 
-from services.backfill.models import EnqueueServicePayload
+from services.backfill.models import (
+    BackfillPeriod,
+    EnqueueServicePayload,
+    IntegrationRunnerConfigurationPayload,
+)
 
 
 class TestEnqueueServicePayload_validate_record_type:
     """Tests for EnqueueServicePayload.validate_record_type validator."""
 
     def test_accepts_valid_record_type_all_posts(self):
-        """Test that 'all_posts' is accepted as valid record type."""
+        """Test that 'posts' is accepted as valid record type."""
         # Arrange
-        record_type = "all_posts"
+        record_type = "posts"
 
         # Act
         payload = EnqueueServicePayload(
@@ -26,9 +30,9 @@ class TestEnqueueServicePayload_validate_record_type:
         assert payload.record_type == record_type
 
     def test_accepts_valid_record_type_feed_posts(self):
-        """Test that 'feed_posts' is accepted as valid record type."""
+        """Test that 'posts_used_in_feeds' is accepted as valid record type."""
         # Arrange
-        record_type = "feed_posts"
+        record_type = "posts_used_in_feeds"
 
         # Act
         payload = EnqueueServicePayload(
@@ -79,7 +83,7 @@ class TestEnqueueServicePayload_validate_record_type:
 
         # Assert
         error_msg = str(exc_info.value)
-        assert "all_posts" in error_msg.lower() or "feed_posts" in error_msg.lower()
+        assert "posts" in error_msg.lower() or "posts_used_in_feeds" in error_msg.lower()
 
 
 class TestEnqueueServicePayload_validate_dates_exist:
@@ -93,7 +97,7 @@ class TestEnqueueServicePayload_validate_dates_exist:
 
         # Act
         payload = EnqueueServicePayload(
-            record_type="all_posts",
+            record_type="posts",
             integrations=["ml_inference_perspective_api"],
             start_date=start_date,
             end_date=end_date,
@@ -112,7 +116,7 @@ class TestEnqueueServicePayload_validate_dates_exist:
         # Act & Assert
         with pytest.raises(ValidationError) as exc_info:
             EnqueueServicePayload(
-                record_type="all_posts",
+                record_type="posts",
                 integrations=["ml_inference_perspective_api"],
                 start_date=start_date,
                 end_date=end_date,
@@ -134,7 +138,7 @@ class TestEnqueueServicePayload_validate_dates_exist:
         # Act & Assert
         with pytest.raises(ValidationError) as exc_info:
             EnqueueServicePayload(
-                record_type="all_posts",
+                record_type="posts",
                 integrations=["ml_inference_perspective_api"],
                 start_date=start_date,
                 end_date=end_date,
@@ -159,7 +163,7 @@ class TestEnqueueServicePayload_validate_date_range:
 
         # Act
         payload = EnqueueServicePayload(
-            record_type="all_posts",
+            record_type="posts",
             integrations=["ml_inference_perspective_api"],
             start_date=start_date,
             end_date=end_date,
@@ -178,7 +182,7 @@ class TestEnqueueServicePayload_validate_date_range:
         # Act & Assert
         with pytest.raises(ValidationError) as exc_info:
             EnqueueServicePayload(
-                record_type="all_posts",
+                record_type="posts",
                 integrations=["ml_inference_perspective_api"],
                 start_date=start_date,
                 end_date=end_date,
@@ -200,7 +204,7 @@ class TestEnqueueServicePayload_validate_date_range:
         # Act & Assert
         with pytest.raises(ValidationError) as exc_info:
             EnqueueServicePayload(
-                record_type="all_posts",
+                record_type="posts",
                 integrations=["ml_inference_perspective_api"],
                 start_date=start_date,
                 end_date=end_date,
@@ -222,7 +226,7 @@ class TestEnqueueServicePayload_validate_date_range:
         # Act & Assert
         with pytest.raises(ValidationError) as exc_info:
             EnqueueServicePayload(
-                record_type="all_posts",
+                record_type="posts",
                 integrations=["ml_inference_perspective_api"],
                 start_date=start_date,
                 end_date=end_date,
@@ -244,7 +248,7 @@ class TestEnqueueServicePayload_integrations:
 
         # Act
         payload = EnqueueServicePayload(
-            record_type="all_posts",
+            record_type="posts",
             integrations=integrations,
             start_date="2024-01-01",
             end_date="2024-01-31",
@@ -260,7 +264,7 @@ class TestEnqueueServicePayload_integrations:
 
         # Act
         payload = EnqueueServicePayload(
-            record_type="all_posts",
+            record_type="posts",
             integrations=integrations,
             start_date="2024-01-01",
             end_date="2024-01-31",
@@ -277,14 +281,174 @@ class TestEnqueueServicePayload_integrations:
         # Act & Assert
         with pytest.raises(ValidationError) as exc_info:
             EnqueueServicePayload(
-                record_type="all_posts",
+                record_type="posts",
                 integrations=integrations,
                 start_date="2024-01-01",
                 end_date="2024-01-31",
+            )
+
+
+class TestEnqueueServicePayload_validate_sampling_config:
+    """Tests for EnqueueServicePayload.validate_sampling_config model validator."""
+
+    def test_accepts_defaults_when_sampling_disabled(self):
+        """Test that sampling defaults are accepted when not enabled."""
+        # Arrange & Act
+        payload = EnqueueServicePayload(
+            record_type="posts",
+            integrations=["ml_inference_perspective_api"],
+            start_date="2024-01-01",
+            end_date="2024-01-31",
+        )
+
+        # Assert
+        assert payload.sample_records is False
+        assert payload.sample_proportion is None
+
+    def test_raises_when_sample_records_true_and_no_proportion(self):
+        """Test that enabling sampling requires a sample_proportion."""
+        # Arrange & Act & Assert
+        with pytest.raises(ValidationError) as exc_info:
+            EnqueueServicePayload(
+                record_type="posts",
+                integrations=["ml_inference_perspective_api"],
+                start_date="2024-01-01",
+                end_date="2024-01-31",
+                sample_records=True,
+                sample_proportion=None,
+            )
+
+        # Assert
+        assert "sample_proportion is required" in str(exc_info.value)
+
+    @pytest.mark.parametrize("proportion", [-0.1, 1.1])
+    def test_raises_when_proportion_out_of_range(self, proportion: float):
+        """Test that sample_proportion must be within [0, 1]."""
+        # Arrange & Act & Assert
+        with pytest.raises(ValidationError) as exc_info:
+            EnqueueServicePayload(
+                record_type="posts",
+                integrations=["ml_inference_perspective_api"],
+                start_date="2024-01-01",
+                end_date="2024-01-31",
+                sample_records=True,
+                sample_proportion=proportion,
+            )
+
+        # Assert
+        assert "between 0 and 1" in str(exc_info.value)
+
+    @pytest.mark.parametrize("proportion", [0.0, 1.0])
+    def test_accepts_boundary_values(self, proportion: float):
+        """Test that 0.0 and 1.0 are accepted when sampling is enabled."""
+        # Arrange & Act
+        payload = EnqueueServicePayload(
+            record_type="posts",
+            integrations=["ml_inference_perspective_api"],
+            start_date="2024-01-01",
+            end_date="2024-01-31",
+            sample_records=True,
+            sample_proportion=proportion,
+        )
+
+        # Assert
+        assert payload.sample_records is True
+        assert payload.sample_proportion == proportion
+
+    def test_raises_when_proportion_provided_but_sampling_disabled(self):
+        """Test that sample_proportion cannot be set unless sample_records is enabled."""
+        # Arrange & Act & Assert
+        with pytest.raises(ValidationError) as exc_info:
+            EnqueueServicePayload(
+                record_type="posts",
+                integrations=["ml_inference_perspective_api"],
+                start_date="2024-01-01",
+                end_date="2024-01-31",
+                sample_records=False,
+                sample_proportion=0.5,
+            )
+
+        # Assert
+        assert "only be set when sample_records is enabled" in str(exc_info.value)
+
+
+class TestIntegrationRunnerConfigurationPayload:
+    """Tests for IntegrationRunnerConfigurationPayload model."""
+
+    def test_max_records_per_run_defaults_to_none(self):
+        """Test that max_records_per_run defaults to None when not provided."""
+        # Arrange & Act
+        payload = IntegrationRunnerConfigurationPayload(
+            integration_name="ml_inference_intergroup",
+            backfill_period=BackfillPeriod.DAYS,
+            backfill_duration=None,
+        )
+
+        # Assert
+        assert payload.max_records_per_run is None
+
+    def test_max_records_per_run_accepts_positive_integer(self):
+        """Test that max_records_per_run accepts positive integer values."""
+        # Arrange
+        expected = 123
+
+        # Act
+        payload = IntegrationRunnerConfigurationPayload(
+            integration_name="ml_inference_intergroup",
+            backfill_period=BackfillPeriod.DAYS,
+            backfill_duration=None,
+            max_records_per_run=expected,
+        )
+
+        # Assert
+        assert payload.max_records_per_run == expected
+
+    def test_max_records_per_run_accepts_zero(self):
+        """Test that max_records_per_run accepts 0 as a valid value."""
+        # Arrange
+        expected = 0
+
+        # Act
+        payload = IntegrationRunnerConfigurationPayload(
+            integration_name="ml_inference_intergroup",
+            backfill_period=BackfillPeriod.DAYS,
+            backfill_duration=None,
+            max_records_per_run=expected,
+        )
+
+        # Assert
+        assert payload.max_records_per_run == expected
+
+    def test_max_records_per_run_negative_raises(self):
+        """Test that max_records_per_run raises ValidationError for negative values."""
+        # Arrange & Act & Assert
+        with pytest.raises(ValidationError) as exc_info:
+            IntegrationRunnerConfigurationPayload(
+                integration_name="ml_inference_intergroup",
+                backfill_period=BackfillPeriod.DAYS,
+                backfill_duration=None,
+                max_records_per_run=-1,
             )
 
         # Assert
         errors = exc_info.value.errors()
         assert len(errors) > 0
         error = errors[0]
-        assert error["type"] in ["value_error", "string_too_short", "too_short"]
+        assert error["type"] == "greater_than_equal"
+        assert error["loc"] == ("max_records_per_run",)
+
+    def test_max_records_per_run_serialization(self):
+        """Test that max_records_per_run is included in model serialization."""
+        # Arrange
+        payload = IntegrationRunnerConfigurationPayload(
+            integration_name="ml_inference_intergroup",
+            backfill_period=BackfillPeriod.DAYS,
+            backfill_duration=7,
+            max_records_per_run=10,
+        )
+
+        # Act
+        result = payload.model_dump()
+
+        # Assert
+        assert result["max_records_per_run"] == 10

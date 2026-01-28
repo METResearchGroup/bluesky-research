@@ -776,6 +776,28 @@ MAP_SERVICE_TO_METADATA = {
             "partition_date": "string",
         },
     },
+    "ml_inference_intergroup": {
+        "local_prefix": os.path.join(
+            root_local_data_directory, "ml_inference_intergroup"
+        ),
+        "s3_prefix": "ml_inference_intergroup",
+        "glue_table_name": "ml_inference_intergroup",
+        "primary_key": "uri",
+        "timestamp_field": "preprocessing_timestamp",
+        "skip_deduping": False,
+        "pydantic_model": "",
+        "dtypes_map": {
+            "uri": "string",
+            "text": "string",
+            "preprocessing_timestamp": "string",
+            "was_successfully_labeled": "bool",
+            "reason": "string",
+            "label": "Int64",
+            "source": "string",
+            "label_timestamp": "string",
+            "partition_date": "string",
+        },
+    },
     "author_to_average_toxicity_outrage": {
         "local_prefix": os.path.join(
             root_local_data_directory, "author_to_average_toxicity_outrage"

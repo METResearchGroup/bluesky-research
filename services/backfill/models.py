@@ -29,6 +29,8 @@ class EnqueueServicePayload(BaseModel):
     integrations: list[str] = Field(min_length=1)
     start_date: str
     end_date: str
+    sample_records: bool = False
+    sample_proportion: float | None = None
 
     @field_validator("record_type")
     @classmethod
@@ -60,11 +62,29 @@ class EnqueueServicePayload(BaseModel):
             )
         return self
 
+    @model_validator(mode="after")
+    def validate_sampling_config(self) -> "EnqueueServicePayload":
+        """Validate sampling configuration fields."""
+        if self.sample_records and self.sample_proportion is None:
+            raise ValueError(
+                "sample_proportion is required when sample_records is enabled"
+            )
+        if self.sample_proportion is not None and not (
+            0.0 <= self.sample_proportion <= 1.0
+        ):
+            raise ValueError("sample_proportion must be between 0 and 1 (inclusive)")
+        if (not self.sample_records) and (self.sample_proportion is not None):
+            raise ValueError(
+                "sample_proportion can only be set when sample_records is enabled"
+            )
+        return self
+
 
 class IntegrationRunnerConfigurationPayload(BaseModel):
     integration_name: str
     backfill_period: BackfillPeriod
     backfill_duration: int | None = Field(default=None)
+    max_records_per_run: int | None = Field(default=None, ge=0)
 
 
 class IntegrationRunnerServicePayload(BaseModel):

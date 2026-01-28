@@ -2,12 +2,7 @@
 
 import pandas as pd
 
-from lib.constants import FEED_LOOKBACK_DAYS_DURING_STUDY, study_start_date
 from lib.db.models import StorageTier
-from lib.datetime_utils import (
-    calculate_start_end_date_for_lookback,
-    get_partition_dates,
-)
 from lib.db.manage_s3_data import S3ParquetBackend, S3ParquetDatasetRef
 from lib.db.manage_local_data import load_data_from_local_storage
 from lib.log.logger import get_logger
@@ -65,57 +60,6 @@ class LocalStorageAdapter(BackfillDataAdapter):
         dumped_posts: list[dict] = cached_df.to_dict(orient="records")
         return [PostToEnqueueModel(**post) for post in dumped_posts]
 
-    def load_feed_posts(
-        self, start_date: str, end_date: str
-    ) -> list[PostToEnqueueModel]:
-        """Load feed posts from local storage.
-
-        Args:
-            start_date: Start date in YYYY-MM-DD format (inclusive)
-            end_date: End date in YYYY-MM-DD format (inclusive)
-        """
-        results: list[PostToEnqueueModel] = []
-        partition_dates: list[str] = get_partition_dates(
-            start_date=start_date, end_date=end_date
-        )
-        for partition_date in partition_dates:
-            results.extend(self._load_feed_posts_for_date(partition_date))
-        deduplicated_results: list[PostToEnqueueModel] = self._deduplicate_feed_posts(
-            posts=results
-        )
-        return deduplicated_results
-
-    def _load_feed_posts_for_date(
-        self, partition_date: str
-    ) -> list[PostToEnqueueModel]:
-        """Load the posts used in the feeds for a given date."""
-
-        posts_used_in_feeds: list[PostUsedInFeedModel] = (
-            self._load_posts_used_in_feeds_for_date(partition_date)
-        )
-
-        lookback_start_date, lookback_end_date = calculate_start_end_date_for_lookback(
-            partition_date=partition_date,
-            num_days_lookback=FEED_LOOKBACK_DAYS_DURING_STUDY,
-            min_lookback_date=study_start_date,
-        )
-
-        candidate_pool_posts: list[PostToEnqueueModel] = (
-            self._load_candidate_pool_posts_for_date(
-                lookback_start_date=lookback_start_date,
-                lookback_end_date=lookback_end_date,
-            )
-        )
-
-        candidate_pool_posts_used_in_feeds: list[PostToEnqueueModel] = (
-            self._get_candidate_pool_posts_used_in_feeds_for_date(
-                candidate_pool_posts=candidate_pool_posts,
-                posts_used_in_feeds=posts_used_in_feeds,
-            )
-        )
-
-        return candidate_pool_posts_used_in_feeds
-
     def _load_posts_used_in_feeds_for_date(
         self, partition_date: str
     ) -> list[PostUsedInFeedModel]:
@@ -138,54 +82,6 @@ class LocalStorageAdapter(BackfillDataAdapter):
         )
         dumped_posts: list[dict] = cached_df.to_dict(orient="records")
         return [PostUsedInFeedModel(**post) for post in dumped_posts]
-
-    def _load_candidate_pool_posts_for_date(
-        self,
-        lookback_start_date: str,
-        lookback_end_date: str,
-    ) -> list[PostToEnqueueModel]:
-        """For feeds from a given date, load the posts that would've been
-        a part of the candidate pool for that date.
-
-        We need to reconstruct in this way because at the level of the feeds,
-        we only have the post URIs, so we need to artificially reconstruct
-        the candidate pool posts from the post URIs in order to have fully
-        hydrated posts.
-        """
-        return self.load_all_posts(
-            start_date=lookback_start_date,
-            end_date=lookback_end_date,
-        )
-
-    def _get_candidate_pool_posts_used_in_feeds_for_date(
-        self,
-        candidate_pool_posts: list[PostToEnqueueModel],
-        posts_used_in_feeds: list[PostUsedInFeedModel],
-    ) -> list[PostToEnqueueModel]:
-        """Get the candidate pool posts used in the feeds for a given date."""
-        uris_of_posts_used_in_feeds: set[str] = {
-            post.uri for post in posts_used_in_feeds
-        }
-        candidate_pool_posts_used_in_feeds: list[PostToEnqueueModel] = [
-            post
-            for post in candidate_pool_posts
-            if post.uri in uris_of_posts_used_in_feeds
-        ]
-        return candidate_pool_posts_used_in_feeds
-
-    def _deduplicate_feed_posts(
-        self, posts: list[PostToEnqueueModel]
-    ) -> list[PostToEnqueueModel]:
-        """Deduplicate feed posts. A post can be used in feeds across multiple
-        dates, so we just want to grab one version of the post.
-        """
-        unique_uris: set[str] = set()
-        filtered_results: list[PostToEnqueueModel] = []
-        for post in posts:
-            if post.uri not in unique_uris:
-                unique_uris.add(post.uri)
-                filtered_results.append(post)
-        return filtered_results
 
     def get_previously_labeled_post_uris(
         self,
@@ -284,11 +180,7 @@ class LocalStorageAdapter(BackfillDataAdapter):
 
 
 class S3Adapter(BackfillDataAdapter):
-    """S3 adapter implementation.
-
-    Mirrors the LocalStorageAdapter interface but loads Parquet from the
-    study dataset S3 layout via S3ParquetBackend + DuckDB.
-    """
+    """S3 adapter implementation."""
 
     def __init__(self, backend: S3ParquetBackend | None = None):
         self.backend = backend or S3ParquetBackend()
@@ -326,24 +218,35 @@ class S3Adapter(BackfillDataAdapter):
         dumped_posts: list[dict] = df.to_dict(orient="records")
         return [PostToEnqueueModel(**post) for post in dumped_posts]
 
-    def load_feed_posts(
-        self, start_date: str, end_date: str
-    ) -> list[PostToEnqueueModel]:
-        """Load feed posts from S3.
-
-        Args:
-            start_date: Start date in YYYY-MM-DD format (inclusive)
-            end_date: End date in YYYY-MM-DD format (inclusive)
-        """
-        logger.warning(
-            "S3Adapter.load_feed_posts() is not yet implemented. "
-            "Will be implemented in a future PR."
-        )
-        raise NotImplementedError(
-            "S3 data loading is not yet implemented. "
-            "Use LocalStorageAdapter for now. "
-            "S3 support will be added in a future PR."
-        )
+    def _load_posts_used_in_feeds_for_date(
+        self, partition_date: str
+    ) -> list[PostUsedInFeedModel]:
+        """Load the URIs of the posts used in the feeds for a given date."""
+        query = f"SELECT {DEFAULT_POST_ID_FIELD} FROM {POSTS_USED_IN_FEEDS_TABLE_NAME}"
+        query_metadata = {
+            "tables": [
+                {
+                    "name": POSTS_USED_IN_FEEDS_TABLE_NAME,
+                    "columns": [DEFAULT_POST_ID_FIELD],
+                }
+            ]
+        }
+        try:
+            df: pd.DataFrame = self.backend.query_dataset_as_df(
+                dataset=S3ParquetDatasetRef(dataset=POSTS_USED_IN_FEEDS_TABLE_NAME),
+                storage_tiers=[StorageTier.CACHE],
+                partition_date=partition_date,
+                query=query,
+                query_metadata=query_metadata,
+            )
+            dumped_posts: list[dict] = df.to_dict(orient="records")
+            return [PostUsedInFeedModel(**post) for post in dumped_posts]
+        except BackfillDataAdapterError:
+            raise
+        except Exception as e:
+            raise BackfillDataAdapterError(
+                f"Failed to load posts used in feeds from S3 for partition_date={partition_date}: {e}"
+            ) from e
 
     def get_previously_labeled_post_uris(
         self,

@@ -1,0 +1,1 @@
+[{"batch_size": 1, "classifier_results": {"accuracy": 1.0, "runtime_seconds": 3.8999393781026206}}, {"batch_size": 2, "classifier_results": {"accuracy": 0.8333333333333334, "runtime_seconds": 6.366917053858439}}]

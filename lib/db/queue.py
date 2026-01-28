@@ -314,9 +314,9 @@ class Queue:
     def batch_add_items_to_queue(
         self,
         items: list[dict],
-        metadata: Optional[dict] = None,
-        batch_size: Optional[int] = DEFAULT_BATCH_CHUNK_SIZE,
-        batch_write_size: Optional[int] = DEFAULT_BATCH_WRITE_SIZE,
+        metadata: dict | None = None,
+        batch_size: int | None = None,
+        batch_write_size: int | None = None,
     ) -> None:
         """Add multiple items to queue, processing in chunks for memory
         efficiency.
@@ -331,6 +331,11 @@ class Queue:
         """
         if metadata is None:
             metadata = {}
+        if batch_size is None:
+            batch_size = DEFAULT_BATCH_CHUNK_SIZE
+        if batch_write_size is None:
+            batch_write_size = DEFAULT_BATCH_WRITE_SIZE
+
         chunks: list[list[dict]] = [
             items[i : i + batch_size] for i in range(0, len(items), batch_size)
         ]

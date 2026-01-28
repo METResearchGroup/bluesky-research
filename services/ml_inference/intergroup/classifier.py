@@ -1,5 +1,8 @@
+from datetime import datetime, timezone
+
 from pydantic import ValidationError
 
+from lib.constants import timestamp_format
 from lib.log.logger import get_logger
 from ml_tooling.llm.prompt_utils import generate_batch_prompts
 from ml_tooling.llm.exceptions import (
@@ -101,6 +104,7 @@ class IntergroupClassifier:
                 f"number of posts ({len(batch)})."
             )
 
+        label_timestamp = datetime.now(timezone.utc).strftime(timestamp_format)
         labels: list[IntergroupLabelModel] = [
             IntergroupLabelModel(
                 uri=post.uri,
@@ -109,6 +113,7 @@ class IntergroupClassifier:
                 was_successfully_labeled=True,
                 reason=None,
                 label=llm_response.label,
+                label_timestamp=label_timestamp,
             )
             for post, llm_response in zip(batch, llm_responses)
         ]
@@ -121,6 +126,7 @@ class IntergroupClassifier:
     ) -> list[IntergroupLabelModel]:
         """Generates a list of failed labels. We create default
         failed labels for posts that couldn't be labeled."""
+        label_timestamp = datetime.now(timezone.utc).strftime(timestamp_format)
         failed_labels: list[IntergroupLabelModel] = [
             IntergroupLabelModel(
                 uri=post.uri,
@@ -129,6 +135,7 @@ class IntergroupClassifier:
                 was_successfully_labeled=False,
                 reason=reason,
                 label=_DEFAULT_FAILED_LABEL_VALUE,
+                label_timestamp=label_timestamp,
             )
             for post in batch
         ]

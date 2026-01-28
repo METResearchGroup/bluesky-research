@@ -1,13 +1,11 @@
 from unittest import TestCase
 from unittest.mock import patch, MagicMock, call
 
-import pytest
 from click.testing import CliRunner
 
 from pipelines.backfill_records_coordination.app import (
     backfill_records,
     _resolve_single_integration,
-    DEFAULT_INTEGRATION_KWARGS,
     _create_integration_runner_payload,
 )
 from services.backfill.models import (
@@ -78,6 +76,52 @@ class TestBackfillCoordinationCliApp(TestCase):
         integration_names = [config.integration_name for config in payload.integration_configs]
         self.assertIn('ml_inference_perspective_api', integration_names)
         self.assertIn('ml_inference_sociopolitical', integration_names)
+        for config in payload.integration_configs:
+            self.assertIsNone(config.max_records_per_run)
+
+    @patch("pipelines.backfill_records_coordination.app.IntegrationRunnerService")
+    def test_run_integrations_with_max_records_per_run(self, mock_service_cls):
+        """Test that --max-records-per-run is plumbed through to IntegrationRunnerService payload."""
+        # Arrange
+        mock_service = MagicMock()
+        mock_service_cls.return_value = mock_service
+
+        # Act
+        result = self.runner.invoke(
+            backfill_records,
+            [
+                "--run-integrations",
+                "-i",
+                "p",
+                "--max-records-per-run",
+                "123",
+            ],
+        )
+
+        # Assert
+        self.assertEqual(result.exit_code, 0)
+        mock_service.run_integrations.assert_called_once()
+        payload = mock_service.run_integrations.call_args[1]["payload"]
+        self.assertEqual(len(payload.integration_configs), 1)
+        self.assertEqual(payload.integration_configs[0].max_records_per_run, 123)
+
+    def test_run_integrations_rejects_negative_max_records_per_run(self):
+        """Test that --max-records-per-run must be >= 0."""
+        # Act
+        result = self.runner.invoke(
+            backfill_records,
+            [
+                "--run-integrations",
+                "-i",
+                "p",
+                "--max-records-per-run",
+                "-1",
+            ],
+        )
+
+        # Assert
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("--max-records-per-run must be >= 0", result.output)
 
     def test_add_to_queue_requires_record_type(self):
         """Test that add_to_queue requires record_type."""
@@ -101,6 +145,72 @@ class TestBackfillCoordinationCliApp(TestCase):
 
         self.assertEqual(result.exit_code, 0)
         mock_enqueue_cls.assert_called_once_with(source_data_location="local")
+
+    @patch("pipelines.backfill_records_coordination.app.EnqueueService")
+    def test_add_to_queue_plumbs_sampling_flags_into_payload(self, mock_enqueue_cls):
+        """Test that sampling flags are passed through to EnqueueServicePayload."""
+        # Arrange
+        mock_enqueue = MagicMock()
+        mock_enqueue_cls.return_value = mock_enqueue
+
+        # Act
+        result = self._invoke_add_to_queue(
+            extra_args=["--sample-records", "--sample-proportion", "0.25"]
+        )
+
+        # Assert
+        self.assertEqual(result.exit_code, 0)
+        mock_enqueue.enqueue_records.assert_called_once()
+        enqueue_payload = mock_enqueue.enqueue_records.call_args[1]["payload"]
+        self.assertTrue(enqueue_payload.sample_records)
+        self.assertEqual(enqueue_payload.sample_proportion, 0.25)
+
+    @patch("pipelines.backfill_records_coordination.app.EnqueueService")
+    def test_add_to_queue_sampling_requires_proportion(self, mock_enqueue_cls):
+        """Test that --sample-records requires --sample-proportion."""
+        # Arrange
+        mock_enqueue_cls.return_value = MagicMock()
+
+        # Act
+        result = self._invoke_add_to_queue(extra_args=["--sample-records"])
+
+        # Assert
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn(
+            "--sample-proportion is required when --sample-records is used",
+            result.output,
+        )
+
+    @patch("pipelines.backfill_records_coordination.app.EnqueueService")
+    def test_add_to_queue_sampling_rejects_out_of_range_proportion(self, mock_enqueue_cls):
+        """Test that --sample-proportion must be in [0, 1]."""
+        # Arrange
+        mock_enqueue_cls.return_value = MagicMock()
+
+        # Act
+        result = self._invoke_add_to_queue(
+            extra_args=["--sample-records", "--sample-proportion", "1.1"]
+        )
+
+        # Assert
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("--sample-proportion must be between 0 and 1", result.output)
+
+    @patch("pipelines.backfill_records_coordination.app.EnqueueService")
+    def test_add_to_queue_rejects_proportion_without_sampling_flag(self, mock_enqueue_cls):
+        """Test that --sample-proportion is only valid when --sample-records is set."""
+        # Arrange
+        mock_enqueue_cls.return_value = MagicMock()
+
+        # Act
+        result = self._invoke_add_to_queue(extra_args=["--sample-proportion", "0.25"])
+
+        # Assert
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn(
+            "--sample-proportion is only valid when --sample-records is used",
+            result.output,
+        )
 
     @patch("pipelines.backfill_records_coordination.app.EnqueueService")
     def test_add_to_queue_source_data_location_s3(
@@ -687,6 +797,7 @@ class TestBackfillCoordinationCliApp(TestCase):
             mapped_integration_names=['ml_inference_perspective_api'],
             backfill_period=None,
             backfill_duration=None,
+            max_records_per_run=None,
         )
         
         self.assertIsInstance(payload, IntegrationRunnerServicePayload)
@@ -695,6 +806,7 @@ class TestBackfillCoordinationCliApp(TestCase):
         self.assertEqual(config.integration_name, 'ml_inference_perspective_api')
         self.assertEqual(config.backfill_period, BackfillPeriod.DAYS)  # Default
         self.assertIsNone(config.backfill_duration)
+        self.assertIsNone(config.max_records_per_run)
 
     def test_create_integration_runner_payload_custom_values(self):
         """Test _create_integration_runner_payload with custom values."""
@@ -702,6 +814,7 @@ class TestBackfillCoordinationCliApp(TestCase):
             mapped_integration_names=['ml_inference_perspective_api', 'ml_inference_sociopolitical'],
             backfill_period='hours',
             backfill_duration=5,
+            max_records_per_run=25,
         )
         
         self.assertIsInstance(payload, IntegrationRunnerServicePayload)
@@ -709,6 +822,7 @@ class TestBackfillCoordinationCliApp(TestCase):
         for config in payload.integration_configs:
             self.assertEqual(config.backfill_period, BackfillPeriod.HOURS)
             self.assertEqual(config.backfill_duration, 5)
+            self.assertEqual(config.max_records_per_run, 25)
 
     @patch('pipelines.backfill_records_coordination.app.CacheBufferWriterService')
     @patch('pipelines.backfill_records_coordination.app.IntegrationRunnerService')
@@ -742,3 +856,202 @@ class TestBackfillCoordinationCliApp(TestCase):
         mock_integration_runner.run_integrations.assert_called_once()
         mock_cache_writer.write_cache.assert_called_once_with(integration_name='ml_inference_perspective_api')
         mock_cache_writer.clear_cache.assert_called_once_with(integration_name='ml_inference_perspective_api')
+
+
+class TestMigrateToS3(TestCase):
+    """Tests for --migrate-to-s3 CLI option and _run_migrate_to_s3."""
+
+    def setUp(self):
+        """Set up CLI runner for migrate-to-s3 tests."""
+        self.runner = CliRunner()
+
+    def test_migrate_to_s3_requires_integrations(self):
+        """Test that --migrate-to-s3 without --integrations raises UsageError."""
+        result = self.runner.invoke(backfill_records, ["--migrate-to-s3"])
+
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn(
+            "--integrations is required when --migrate-to-s3 is used",
+            result.output,
+        )
+
+    @patch("pipelines.backfill_records_coordination.app.os.makedirs")
+    @patch("lib.aws.s3.S3")
+    @patch(
+        "scripts.migrate_research_data_to_s3.run_migration.run_migration_for_prefixes"
+    )
+    @patch(
+        "scripts.migrate_research_data_to_s3.initialize_migration_tracker_db.initialize_migration_tracker_db"
+    )
+    @patch(
+        "scripts.migrate_research_data_to_s3.migration_tracker.MigrationTracker"
+    )
+    @patch(
+        "scripts.migrate_research_data_to_s3.integration_prefixes.prefixes_for_integrations"
+    )
+    def test_migrate_to_s3_only_triggers_init_and_run(
+        self,
+        mock_prefixes: MagicMock,
+        mock_tracker_cls: MagicMock,
+        mock_init: MagicMock,
+        mock_run: MagicMock,
+        mock_s3_cls: MagicMock,
+        _mock_makedirs: MagicMock,
+    ):
+        """Test that --migrate-to-s3 with -i g calls init and run_migration_for_prefixes."""
+        mock_prefixes.return_value = [
+            "ml_inference_intergroup/active",
+            "ml_inference_intergroup/cache",
+        ]
+        mock_tracker = MagicMock()
+        mock_tracker_cls.return_value = mock_tracker
+        mock_s3 = MagicMock()
+        mock_s3_cls.return_value = mock_s3
+
+        result = self.runner.invoke(
+            backfill_records,
+            ["--migrate-to-s3", "-i", "g"],
+        )
+
+        self.assertEqual(result.exit_code, 0)
+        mock_prefixes.assert_called_once_with(["ml_inference_intergroup"])
+        mock_init.assert_called_once()
+        init_call = mock_init.call_args
+        self.assertEqual(init_call[0][0], mock_prefixes.return_value)
+        self.assertEqual(init_call[0][1], mock_tracker)
+        mock_run.assert_called_once_with(
+            mock_prefixes.return_value, mock_tracker, mock_s3
+        )
+        mock_tracker_cls.assert_called_once()
+        mock_s3_cls.assert_called_once_with(create_client_flag=True)
+
+    @patch(
+        "scripts.migrate_research_data_to_s3.run_migration.run_migration_for_prefixes"
+    )
+    @patch(
+        "scripts.migrate_research_data_to_s3.migration_tracker.MigrationTracker"
+    )
+    @patch(
+        "scripts.migrate_research_data_to_s3.integration_prefixes.prefixes_for_integrations"
+    )
+    def test_migrate_to_s3_no_op_when_no_prefixes(
+        self,
+        mock_prefixes: MagicMock,
+        mock_tracker_cls: MagicMock,
+        mock_run: MagicMock,
+    ):
+        """Test that --migrate-to-s3 with no matching prefixes skips init and run."""
+        mock_prefixes.return_value = []
+
+        result = self.runner.invoke(
+            backfill_records,
+            ["--migrate-to-s3", "-i", "g"],
+        )
+
+        self.assertEqual(result.exit_code, 0)
+        mock_prefixes.assert_called_once_with(["ml_inference_intergroup"])
+        mock_tracker_cls.assert_not_called()
+        mock_run.assert_not_called()
+
+    @patch("pipelines.backfill_records_coordination.app.os.makedirs")
+    @patch("lib.aws.s3.S3")
+    @patch(
+        "scripts.migrate_research_data_to_s3.run_migration.run_migration_for_prefixes"
+    )
+    @patch(
+        "scripts.migrate_research_data_to_s3.initialize_migration_tracker_db.initialize_migration_tracker_db"
+    )
+    @patch(
+        "scripts.migrate_research_data_to_s3.migration_tracker.MigrationTracker"
+    )
+    @patch(
+        "scripts.migrate_research_data_to_s3.integration_prefixes.prefixes_for_integrations"
+    )
+    @patch("pipelines.backfill_records_coordination.app.CacheBufferWriterService")
+    @patch(
+        "pipelines.backfill_records_coordination.app.IntegrationRunnerService"
+    )
+    @patch("pipelines.backfill_records_coordination.app.EnqueueService")
+    def test_migrate_to_s3_with_write_cache_buffer_and_run_integrations(
+        self,
+        mock_enqueue_cls: MagicMock,
+        mock_integration_runner_cls: MagicMock,
+        mock_cache_writer_cls: MagicMock,
+        mock_prefixes: MagicMock,
+        mock_tracker_cls: MagicMock,
+        mock_init: MagicMock,
+        mock_run: MagicMock,
+        mock_s3_cls: MagicMock,
+        _mock_makedirs: MagicMock,
+    ):
+        """Test enqueue + run integrations + write cache + migrate-to-s3 all run."""
+        mock_prefixes.return_value = [
+            "ml_inference_intergroup/active",
+            "ml_inference_intergroup/cache",
+        ]
+        mock_tracker_cls.return_value = MagicMock()
+        mock_s3_cls.return_value = MagicMock()
+        mock_enqueue_cls.return_value = MagicMock()
+        mock_integration_runner_cls.return_value = MagicMock()
+        mock_cache_writer_cls.return_value = MagicMock()
+
+        result = self.runner.invoke(
+            backfill_records,
+            [
+                "--record-type", "posts",
+                "-i", "g",
+                "--add-to-queue",
+                "--run-integrations",
+                "--write-cache-buffer-to-storage",
+                "--service-source-buffer", "ml_inference_intergroup",
+                "--migrate-to-s3",
+                "--start-date", "2024-01-01",
+                "--end-date", "2024-01-31",
+            ],
+        )
+
+        self.assertEqual(result.exit_code, 0)
+        mock_enqueue_cls.return_value.enqueue_records.assert_called_once()
+        mock_integration_runner_cls.return_value.run_integrations.assert_called_once()
+        mock_cache_writer_cls.return_value.write_cache.assert_called_once_with(
+            integration_name="ml_inference_intergroup"
+        )
+        mock_prefixes.assert_called_once_with(["ml_inference_intergroup"])
+        mock_init.assert_called_once()
+        mock_run.assert_called_once()
+
+    @patch(
+        "scripts.migrate_research_data_to_s3.migration_tracker.MigrationTracker"
+    )
+    @patch(
+        "scripts.migrate_research_data_to_s3.integration_prefixes.prefixes_for_integrations"
+    )
+    def test_migrate_to_s3_uses_dedicated_db_path(
+        self, mock_prefixes: MagicMock, mock_tracker_cls: MagicMock
+    ):
+        """Test that MigrationTracker is called with backfill-specific db_path."""
+        mock_prefixes.return_value = [
+            "ml_inference_intergroup/active",
+            "ml_inference_intergroup/cache",
+        ]
+        mock_tracker_cls.return_value = MagicMock()
+
+        with patch(
+            "scripts.migrate_research_data_to_s3.run_migration.run_migration_for_prefixes"
+        ), patch(
+            "scripts.migrate_research_data_to_s3.initialize_migration_tracker_db.initialize_migration_tracker_db"
+        ), patch("lib.aws.s3.S3"), patch(
+            "pipelines.backfill_records_coordination.app.os.makedirs"
+        ):
+            result = self.runner.invoke(
+                backfill_records,
+                ["--migrate-to-s3", "-i", "g"],
+            )
+
+        self.assertEqual(result.exit_code, 0)
+        mock_tracker_cls.assert_called_once()
+        call_kw = mock_tracker_cls.call_args[1]
+        self.assertIn("db_path", call_kw)
+        db_path = call_kw["db_path"]
+        self.assertIn(".migration_tracker", db_path)
+        self.assertIn("migration_tracker_backfill.db", db_path)

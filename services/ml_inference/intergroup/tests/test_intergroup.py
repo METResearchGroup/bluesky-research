@@ -50,6 +50,26 @@ class TestClassifyLatestPosts:
         assert call_kwargs["backfill_period"] == "days"
         assert call_kwargs["backfill_duration"] == 7
 
+    def test_passes_max_records_per_run_to_orchestrate_classification(
+        self, mock_orchestrate
+    ):
+        """Test that max_records_per_run is passed through to orchestrate_classification."""
+        # Arrange
+        expected_max = 10
+        mock_orchestrate.return_value = ClassificationSessionModel(
+            inference_type="intergroup",
+            inference_timestamp="2024-01-01-12:00:00",
+            total_classified_posts=0,
+            inference_metadata={},
+        )
+
+        # Act
+        classify_latest_posts(max_records_per_run=expected_max)
+
+        # Assert
+        call_kwargs = mock_orchestrate.call_args[1]
+        assert call_kwargs["max_records_per_run"] == expected_max
+
     def test_with_backfill_period_days_and_duration(self, mock_orchestrate):
         """Test with backfill_period="days" and backfill_duration=7.
 

@@ -4112,6 +4112,71 @@ resource "aws_glue_catalog_table" "archive_ml_inference_ime" {
   }
 }
 
+# Archive table for ml_inference_intergroup
+resource "aws_glue_catalog_table" "archive_ml_inference_intergroup" {
+  name          = "archive_ml_inference_intergroup"
+  database_name = var.default_glue_database_name
+  table_type    = "EXTERNAL_TABLE"
+
+  parameters = {
+    EXTERNAL              = "TRUE"
+    "parquet.compression" = "SNAPPY"
+    "comment"             = "Archived Nature paper 2024 data - analysis use only, not production"
+  }
+
+  storage_descriptor {
+    location      = "s3://${var.s3_root_bucket_name}/bluesky_research/2024_nature_paper_study_data/ml_inference_intergroup/cache/"
+    input_format  = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat"
+
+    ser_de_info {
+      name                  = "ParquetHiveSerDe"
+      serialization_library = "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe"
+      parameters = {
+        "serialization.format" = 1
+      }
+    }
+
+    columns {
+      name = "uri"
+      type = "string"
+    }
+    columns {
+      name = "text"
+      type = "string"
+    }
+    columns {
+      name = "preprocessing_timestamp"
+      type = "string"
+    }
+    columns {
+      name = "was_successfully_labeled"
+      type = "boolean"
+    }
+    columns {
+      name = "reason"
+      type = "string"
+    }
+    columns {
+      name = "label"
+      type = "bigint"
+    }
+    columns {
+      name = "source"
+      type = "string"
+    }
+    columns {
+      name = "label_timestamp"
+      type = "string"
+    }
+  }
+
+  partition_keys {
+    name = "partition_date"
+    type = "string"
+  }
+}
+
 # Archive table for ml_inference_perspective_api
 resource "aws_glue_catalog_table" "archive_ml_inference_perspective_api" {
   name          = "archive_ml_inference_perspective_api"

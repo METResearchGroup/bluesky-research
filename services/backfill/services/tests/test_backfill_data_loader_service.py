@@ -165,21 +165,19 @@ class TestBackfillDataLoaderService_load_posts:
         start_date = "2024-01-01"
         end_date = "2024-01-31"
 
-        with patch.object(service, expected_method) as mock_method:
-            mock_method.return_value = sample_posts[:1]  # Use single post for consistency
+        mock_method = Mock(return_value=sample_posts[:1])  # Use single post for consistency
+        service._post_scope_loaders[post_scope] = mock_method
 
-            # Act
-            result = service._load_posts(
-                post_scope=post_scope,
-                start_date=start_date,
-                end_date=end_date,
-            )
+        # Act
+        result = service._load_posts(
+            post_scope=post_scope,
+            start_date=start_date,
+            end_date=end_date,
+        )
 
-            # Assert
-            mock_method.assert_called_once_with(
-                start_date=start_date, end_date=end_date
-            )
-            assert result == sample_posts[:1]
+        # Assert
+        mock_method.assert_called_once_with(start_date=start_date, end_date=end_date)
+        assert result == sample_posts[:1]
 
     def test_raises_value_error_for_invalid_scope(self, service, mock_repository):
         """Test that invalid post scope raises ValueError."""
