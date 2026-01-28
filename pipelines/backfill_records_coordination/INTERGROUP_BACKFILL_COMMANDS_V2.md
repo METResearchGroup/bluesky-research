@@ -162,8 +162,8 @@ OK GREAT. This looks more correct.
 ```bash
 #	label	_col1
 1	-1	2
-2	1	28823
-3	0	278829
+2	1	28834
+3	0	278905
 ```
 
 ```sql
@@ -188,11 +188,11 @@ ORDER BY 1 ASC
 11	2024-10-11	27844
 12	2024-10-12	65829
 13	2024-10-13	68387
-14	2024-10-14	72987
-15	2024-10-15	46748
-16	2024-10-16	4432
-17	2024-10-17	407
-18	2024-10-18	667
+14	2024-10-14	72989
+15	2024-10-15	46752
+16	2024-10-16	4502
+17	2024-10-17	414
+18	2024-10-18	671
 ```
 
 I also checked the number with label = 1
@@ -223,15 +223,29 @@ ORDER BY 1 ASC
 11	2024-10-11	2024
 12	2024-10-12	5947
 13	2024-10-13	6769
-14	2024-10-14	7374
-15	2024-10-15	4216
-16	2024-10-16	456
+14	2024-10-14	7375
+15	2024-10-15	4219
+16	2024-10-16	463
 17	2024-10-17	38
 18	2024-10-18	39
 ```
 
-- [ ] Delete input and output queues
+- [X] Inspect input and output queues
 
+```sql
+-- Check input queue
+sqlite3 input_ml_inference_intergroup.db "SELECT COUNT(*) FROM queue;"
+
+-- Check output queue
+sqlite3 output_ml_inference_intergroup.db "SELECT COUNT(*) FROM queue;"
+```
+
+- [X] Delete input and output queues
+
+```bash
+rm input_ml_inference_intergroup.db
+rm output_ml_inference_intergroup.db
+```
 
 ## Week 4: 2024-10-19 to 2024-10-25
 
@@ -269,7 +283,33 @@ GROUP BY 1
 ORDER BY 1 ASC
 ```
 
+```sql
+SELECT partition_date, COUNT(*) as total_labels
+FROM (
+  SELECT DISTINCT label, uri, partition_date
+  FROM archive_ml_inference_intergroup
+  WHERE label = 1
+) t
+GROUP BY 1
+ORDER BY 1 ASC
+```
+
+- [ ] Inspect input and output queues
+
+```sql
+-- Check input queue
+sqlite3 input_ml_inference_intergroup.db "SELECT COUNT(*) FROM queue;"
+
+-- Check output queue
+sqlite3 output_ml_inference_intergroup.db "SELECT COUNT(*) FROM queue;"
+```
+
 - [ ] Delete input and output queues
+
+```bash
+rm input_ml_inference_intergroup.db
+rm output_ml_inference_intergroup.db
+```
 
 
 ## Week 5: 2024-10-26 to 2024-11-01
@@ -308,7 +348,33 @@ GROUP BY 1
 ORDER BY 1 ASC
 ```
 
+```sql
+SELECT partition_date, COUNT(*) as total_labels
+FROM (
+  SELECT DISTINCT label, uri, partition_date
+  FROM archive_ml_inference_intergroup
+  WHERE label = 1
+) t
+GROUP BY 1
+ORDER BY 1 ASC
+```
+
+- [ ] Inspect input and output queues
+
+```sql
+-- Check input queue
+sqlite3 input_ml_inference_intergroup.db "SELECT COUNT(*) FROM queue;"
+
+-- Check output queue
+sqlite3 output_ml_inference_intergroup.db "SELECT COUNT(*) FROM queue;"
+```
+
 - [ ] Delete input and output queues
+
+```bash
+rm input_ml_inference_intergroup.db
+rm output_ml_inference_intergroup.db
+```
 
 
 ## Week 6: 2024-11-02 to 2024-11-08
@@ -347,7 +413,33 @@ GROUP BY 1
 ORDER BY 1 ASC
 ```
 
+```sql
+SELECT partition_date, COUNT(*) as total_labels
+FROM (
+  SELECT DISTINCT label, uri, partition_date
+  FROM archive_ml_inference_intergroup
+  WHERE label = 1
+) t
+GROUP BY 1
+ORDER BY 1 ASC
+```
+
+- [ ] Inspect input and output queues
+
+```sql
+-- Check input queue
+sqlite3 input_ml_inference_intergroup.db "SELECT COUNT(*) FROM queue;"
+
+-- Check output queue
+sqlite3 output_ml_inference_intergroup.db "SELECT COUNT(*) FROM queue;"
+```
+
 - [ ] Delete input and output queues
+
+```bash
+rm input_ml_inference_intergroup.db
+rm output_ml_inference_intergroup.db
+```
 
 
 ## Week 7: 2024-11-09 to 2024-11-15
@@ -386,7 +478,33 @@ GROUP BY 1
 ORDER BY 1 ASC
 ```
 
+```sql
+SELECT partition_date, COUNT(*) as total_labels
+FROM (
+  SELECT DISTINCT label, uri, partition_date
+  FROM archive_ml_inference_intergroup
+  WHERE label = 1
+) t
+GROUP BY 1
+ORDER BY 1 ASC
+```
+
+- [ ] Inspect input and output queues
+
+```sql
+-- Check input queue
+sqlite3 input_ml_inference_intergroup.db "SELECT COUNT(*) FROM queue;"
+
+-- Check output queue
+sqlite3 output_ml_inference_intergroup.db "SELECT COUNT(*) FROM queue;"
+```
+
 - [ ] Delete input and output queues
+
+```bash
+rm input_ml_inference_intergroup.db
+rm output_ml_inference_intergroup.db
+```
 
 
 ## Week 8: 2024-11-16 to 2024-11-22
@@ -425,7 +543,33 @@ GROUP BY 1
 ORDER BY 1 ASC
 ```
 
+```sql
+SELECT partition_date, COUNT(*) as total_labels
+FROM (
+  SELECT DISTINCT label, uri, partition_date
+  FROM archive_ml_inference_intergroup
+  WHERE label = 1
+) t
+GROUP BY 1
+ORDER BY 1 ASC
+```
+
+- [ ] Inspect input and output queues
+
+```sql
+-- Check input queue
+sqlite3 input_ml_inference_intergroup.db "SELECT COUNT(*) FROM queue;"
+
+-- Check output queue
+sqlite3 output_ml_inference_intergroup.db "SELECT COUNT(*) FROM queue;"
+```
+
 - [ ] Delete input and output queues
+
+```bash
+rm input_ml_inference_intergroup.db
+rm output_ml_inference_intergroup.db
+```
 
 
 ## Week 9: 2024-11-23 to 2024-11-29
@@ -464,7 +608,33 @@ GROUP BY 1
 ORDER BY 1 ASC
 ```
 
+```sql
+SELECT partition_date, COUNT(*) as total_labels
+FROM (
+  SELECT DISTINCT label, uri, partition_date
+  FROM archive_ml_inference_intergroup
+  WHERE label = 1
+) t
+GROUP BY 1
+ORDER BY 1 ASC
+```
+
+- [ ] Inspect input and output queues
+
+```sql
+-- Check input queue
+sqlite3 input_ml_inference_intergroup.db "SELECT COUNT(*) FROM queue;"
+
+-- Check output queue
+sqlite3 output_ml_inference_intergroup.db "SELECT COUNT(*) FROM queue;"
+```
+
 - [ ] Delete input and output queues
+
+```bash
+rm input_ml_inference_intergroup.db
+rm output_ml_inference_intergroup.db
+```
 
 
 ## Week 10: 2024-11-30 to 2024-12-01
@@ -501,6 +671,27 @@ SELECT partition_date, COUNT(*) as total_labels
 FROM archive_ml_inference_intergroup
 GROUP BY 1
 ORDER BY 1 ASC
+```
+
+```sql
+SELECT partition_date, COUNT(*) as total_labels
+FROM (
+  SELECT DISTINCT label, uri, partition_date
+  FROM archive_ml_inference_intergroup
+  WHERE label = 1
+) t
+GROUP BY 1
+ORDER BY 1 ASC
+```
+
+- [ ] Inspect input and output queues
+
+```sql
+-- Check input queue
+sqlite3 input_ml_inference_intergroup.db "SELECT COUNT(*) FROM queue;"
+
+-- Check output queue
+sqlite3 output_ml_inference_intergroup.db "SELECT COUNT(*) FROM queue;"
 ```
 
 - [ ] Delete input and output queues
