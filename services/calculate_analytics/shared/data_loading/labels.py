@@ -204,6 +204,58 @@ def get_labels_for_partition_date(
     return df
 
 
+def load_intergroup_labels_for_date_range(
+    start_partition_date: str,
+    end_partition_date: str,
+    uris: set[str] | None = None,
+) -> dict[str, int]:
+    """Load ml_inference_intergroup labels over a date range and return uri -> label (0 or 1).
+
+    Deduplicates by uri (keeps latest by label_timestamp). Keeps only valid binary
+    labels (0 or 1); drops null and -1. Returns a dict for O(1) lookup when computing
+    per-feed intergroup proportions.
+
+    Args:
+        start_partition_date: Start of partition date range to load.
+        end_partition_date: End of partition date range to load.
+        uris: If provided, filter the loaded DataFrame to these URIs after load.
+
+    Returns:
+        Dict mapping uri -> label (0 or 1).
+    """
+    df: pd.DataFrame = load_data_from_local_storage(
+        service="ml_inference_intergroup",
+        storage_tiers=["cache"],
+        start_partition_date=start_partition_date,
+        end_partition_date=end_partition_date,
+    )
+    logger.info(
+        f"[Intergroup labels] Loaded {len(df)} rows for {start_partition_date} to {end_partition_date}, "
+        f"{df['uri'].nunique()} unique URIs"
+    )
+
+    if uris is not None:
+        df = df[df["uri"].isin(uris)]
+        logger.info(
+            f"[Intergroup labels] After filtering to provided URIs: {len(df)} rows, {df['uri'].nunique()} unique URIs"
+        )
+
+    # Deduplicate by uri, keep latest by label_timestamp
+    if "label_timestamp" in df.columns:
+        df = df.sort_values("label_timestamp", ascending=False)
+    df = df.drop_duplicates(subset=["uri"], keep="first")
+    logger.info(f"[Intergroup labels] After deduplication: {len(df)} rows")
+
+    # Keep only valid binary labels (0 or 1); drop null and -1
+    df = df[df["label"].isin((0, 1))]
+    logger.info(
+        f"[Intergroup labels] After filtering to label in (0, 1): {len(df)} rows"
+    )
+
+    result: dict[str, int] = dict(zip(df["uri"].astype(str), df["label"].astype(int)))
+    return result
+
+
 def transform_labels_dict(integration: str, labels_dict: dict):
     """Transform the labels into a format so that we get the relevant
     measures. Integration-specific."""

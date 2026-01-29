@@ -72,14 +72,17 @@ def map_users_to_posts_used_in_feeds(
 
 
 def get_feeds_per_user(valid_study_users_dids: set[str]) -> pd.DataFrame:
-    query = (
-        "SELECT bluesky_user_did, feed, feed_generation_timestamp FROM generated_feeds"
-    )
+    query = "SELECT feed_id, bluesky_user_did, feed, feed_generation_timestamp FROM generated_feeds"
     query_metadata = {
         "tables": [
             {
                 "name": "generated_feeds",
-                "columns": ["bluesky_user_did", "feed", "feed_generation_timestamp"],
+                "columns": [
+                    "feed_id",
+                    "bluesky_user_did",
+                    "feed",
+                    "feed_generation_timestamp",
+                ],
             }
         ]
     }

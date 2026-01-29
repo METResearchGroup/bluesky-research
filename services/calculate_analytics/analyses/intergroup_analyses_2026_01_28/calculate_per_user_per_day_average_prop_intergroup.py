@@ -55,45 +55,46 @@ COLUMNS_FOR_AGGREGATION = [
 ]
 
 
+def _feed_row_to_parsed(row: dict[str, Any]) -> dict[str, Any] | None:
+    """Transform one feed row into (feed_id, bluesky_user_did, feed_generation_timestamp, uris). Returns None if row is skipped."""
+    feed_str = row["feed"]
+    feed_id = row["feed_id"]
+    bluesky_user_did = row["bluesky_user_did"]
+    feed_generation_timestamp = row["feed_generation_timestamp"]
+
+    if feed_str is None:
+        return None
+    try:
+        feed = load_feed_from_json_str(feed_str)
+    except (ValueError, TypeError):
+        logger.warning(
+            f"Feed for user {bluesky_user_did} is not valid JSON, skipping",
+        )
+        return None
+
+    if not isinstance(feed, list):
+        logger.warning(
+            f"Feed for user {bluesky_user_did} is not a list, skipping",
+        )
+        return None
+
+    uris: list[str] = [x for post in feed if (x := post.get("item"))]
+
+    return {
+        "feed_id": feed_id,
+        "bluesky_user_did": bluesky_user_did,
+        "feed_generation_timestamp": feed_generation_timestamp,
+        "uris": uris,
+    }
+
+
 def _parse_feeds_to_uri_lists(feeds_df: pd.DataFrame) -> list[dict[str, Any]]:
-    """Parse each feed once into (bluesky_user_did, feed_generation_timestamp, list of URIs)."""
+    """Parse each feed once into (feed_id, bluesky_user_did, feed_generation_timestamp, list of URIs)."""
     parsed: list[dict[str, Any]] = []
     for row in feeds_df.to_dict("records"):
-        feed_str = row["feed"]
-        bluesky_user_did = row["bluesky_user_did"]
-        feed_generation_timestamp = row["feed_generation_timestamp"]
-
-        if feed_str is None:
-            continue
-        try:
-            feed = load_feed_from_json_str(feed_str)
-        except (ValueError, TypeError):
-            logger.warning(
-                f"Feed for user {bluesky_user_did} is not valid JSON, skipping",
-            )
-            continue
-
-        if not isinstance(feed, list):
-            logger.warning(
-                f"Feed for user {bluesky_user_did} is not a list, skipping",
-            )
-            continue
-
-        uris: list[str] = []
-
-        for post in feed:
-            item = post.get("item")
-            if item:
-                uris.append(item)
-
-        parsed.append(
-            {
-                "bluesky_user_did": bluesky_user_did,
-                "feed_generation_timestamp": feed_generation_timestamp,
-                "uris": uris,
-            }
-        )
-
+        item = _feed_row_to_parsed(row)
+        if item is not None:
+            parsed.append(item)
     return parsed
 
 
@@ -105,28 +106,33 @@ def _all_feed_uris(parsed: list[dict[str, Any]]) -> set[str]:
     return all_uris
 
 
+def _parsed_feed_to_row(
+    p: dict[str, Any],
+    uri_to_label: dict[str, int],
+) -> dict[str, Any]:
+    """Transform one parsed feed into a per-feed row (prop_intergroup_labeled, counts, ids)."""
+    labels_in_feed = [
+        uri_to_label[uri] for uri in p["uris"] if uri_to_label.get(uri) in (0, 1)
+    ]
+    n_posts = len(p["uris"])
+    n_labeled = len(labels_in_feed)
+    prop = (sum(labels_in_feed) / n_labeled) if n_labeled else float("nan")
+    return {
+        "bluesky_user_did": p["bluesky_user_did"],
+        "feed_generation_timestamp": p["feed_generation_timestamp"],
+        "prop_intergroup_labeled": prop,
+        "n_posts_in_feed": n_posts,
+        "n_labeled_posts_in_feed": n_labeled,
+        "feed_id": p["feed_id"],
+    }
+
+
 def _build_per_feed_proportion_table(
     parsed: list[dict[str, Any]],
     uri_to_label: dict[str, int],
 ) -> pd.DataFrame:
-    """Build one row per feed: bluesky_user_did, feed_generation_timestamp, prop_intergroup_labeled."""
-    rows: list[dict] = []
-    for p in parsed:
-        labels_in_feed = [
-            uri_to_label[uri] for uri in p["uris"] if uri_to_label.get(uri) in (0, 1)
-        ]
-        n_posts = len(p["uris"])
-        n_labeled = len(labels_in_feed)
-        prop = (sum(labels_in_feed) / n_labeled) if n_labeled else float("nan")
-        rows.append(
-            {
-                "bluesky_user_did": p["bluesky_user_did"],
-                "feed_generation_timestamp": p["feed_generation_timestamp"],
-                "prop_intergroup_labeled": prop,
-                "n_posts_in_feed": n_posts,
-                "n_labeled_posts_in_feed": n_labeled,
-            }
-        )
+    """Build one row per feed: feed_id, bluesky_user_did, feed_generation_timestamp, prop_intergroup_labeled."""
+    rows = [_parsed_feed_to_row(p, uri_to_label) for p in parsed]
     return pd.DataFrame(rows)
 
 
