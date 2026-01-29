@@ -512,13 +512,51 @@ rm output_ml_inference_intergroup.db
 
 ## Weeks 5, 6, 7: 2024-10-26 to 2024-11-15
 
-- [ ] Enqueueing:
-  - [ ] Week 5: `python -m pipelines.backfill_records_coordination.app --add-to-queue --record-type posts_used_in_feeds --integrations g --start-date 2024-10-26 --end-date 2024-11-01 --source-data-location s3 --sample-records --sample-proportion 0.10`
-  - [ ] Week 6: `python -m pipelines.backfill_records_coordination.app --add-to-queue --record-type posts_used_in_feeds --integrations g --start-date 2024-11-02 --end-date 2024-11-08 --source-data-location s3 --sample-records --sample-proportion 0.10`
-  - [ ] Week 7: `python -m pipelines.backfill_records_coordination.app --add-to-queue --record-type posts_used_in_feeds --integrations g --start-date 2024-11-09 --end-date 2024-11-15 --source-data-location s3 --sample-records --sample-proportion 0.10`
+- [X] Enqueueing:
+  - [X] Week 5: `python -m pipelines.backfill_records_coordination.app --add-to-queue --record-type posts_used_in_feeds --integrations g --start-date 2024-10-26 --end-date 2024-11-01 --source-data-location s3 --sample-records --sample-proportion 0.10`
+
+```bash
+2026-01-28 18:53:36,785 INFO [logger.py]: Loaded 0 post URIs from S3 for service ml_inference_intergroup
+2026-01-28 18:53:36,811 INFO [logger.py]: Creating new SQLite DB for queue input_ml_inference_intergroup...
+2026-01-28 18:53:36,920 INFO [logger.py]: Writing 46263 items as 47 minibatches to DB.
+2026-01-28 18:53:36,920 INFO [logger.py]: Writing 47 minibatches to DB as 2 batches...
+2026-01-28 18:53:36,920 INFO [logger.py]: Processing batch 1/2...
+2026-01-28 18:53:36,963 INFO [logger.py]: Inserted 46263 posts into queue for integration: ml_inference_intergroup
+2026-01-28 18:53:36,966 INFO [logger.py]: [Progress: 1/1] Completed enqueuing records for integration: ml_inference_intergroup
+2026-01-28 18:53:36,967 INFO [logger.py]: [Progress: 1/1] Enqueuing records completed successfully.
+```
+
+  - [X] Week 6: `python -m pipelines.backfill_records_coordination.app --add-to-queue --record-type posts_used_in_feeds --integrations g --start-date 2024-11-02 --end-date 2024-11-08 --source-data-location s3 --sample-records --sample-proportion 0.10`
+
+```bash
+2026-01-28 19:26:06,061 INFO [logger.py]: Query metrics: {'duckdb': {'query': {'sql': 'SELECT uri FROM ml_inference_intergroup', 'result_shape': {'rows': 0, 'columns': 1}, 'result_memory_usage_mb': np.float64(0.000118255615234375)}, 'database': {'total_size_mb': None, 'table_count': 0}}}
+2026-01-28 19:26:06,061 INFO [logger.py]: Loaded 0 post URIs from S3 for service ml_inference_intergroup
+2026-01-28 19:26:06,091 INFO [logger.py]: DB for queue input_ml_inference_intergroup already exists. Not overwriting, using existing DB...
+2026-01-28 19:26:06,091 INFO [logger.py]: Loading existing SQLite DB for queue input_ml_inference_intergroup...
+2026-01-28 19:26:06,096 INFO [logger.py]: Current queue size: 47 items
+2026-01-28 19:26:06,203 INFO [logger.py]: Writing 46880 items as 47 minibatches to DB.
+2026-01-28 19:26:06,203 INFO [logger.py]: Writing 47 minibatches to DB as 2 batches...
+2026-01-28 19:26:06,203 INFO [logger.py]: Processing batch 1/2...
+2026-01-28 19:26:06,238 INFO [logger.py]: Inserted 46880 posts into queue for integration: ml_inference_intergroup
+2026-01-28 19:26:06,243 INFO [logger.py]: [Progress: 1/1] Completed enqueuing records for integration: ml_inference_intergroup
+2026-01-28 19:26:06,243 INFO [logger.py]: [Progress: 1/1] Enqueuing records completed successfully.
+```
+
+  - [X] Week 7: `python -m pipelines.backfill_records_coordination.app --add-to-queue --record-type posts_used_in_feeds --integrations g --start-date 2024-11-09 --end-date 2024-11-15 --source-data-location s3 --sample-records --sample-proportion 0.10`
+
+```bash
+2026-01-28 20:11:25,973 INFO [logger.py]: Loading existing SQLite DB for queue input_ml_inference_intergroup...
+2026-01-28 20:11:25,983 INFO [logger.py]: Current queue size: 94 items
+2026-01-28 20:11:26,109 INFO [logger.py]: Writing 55493 items as 56 minibatches to DB.
+2026-01-28 20:11:26,109 INFO [logger.py]: Writing 56 minibatches to DB as 3 batches...
+2026-01-28 20:11:26,109 INFO [logger.py]: Processing batch 1/3...
+2026-01-28 20:11:26,161 INFO [logger.py]: Inserted 55493 posts into queue for integration: ml_inference_intergroup
+2026-01-28 20:11:26,166 INFO [logger.py]: [Progress: 1/1] Completed enqueuing records for integration: ml_inference_intergroup
+2026-01-28 20:11:26,166 INFO [logger.py]: [Progress: 1/1] Enqueuing records completed successfully.
+```
 
 - [ ] Running integrations:
-  - `python -m pipelines.backfill_records_coordination.app --run-integrations --integrations g --max-records-per-run 20000`
+  - `python -m pipelines.backfill_records_coordination.app --run-integrations --integrations g --max-records-per-run 170000`
 
 - [ ] Writing cache to storage:
   - `python -m pipelines.backfill_records_coordination.app --write-cache-buffer-to-storage --service-source-buffer ml_inference_intergroup`
