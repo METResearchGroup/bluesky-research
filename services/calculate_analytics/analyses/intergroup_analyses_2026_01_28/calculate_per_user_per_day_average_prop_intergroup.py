@@ -1,34 +1,46 @@
 """
-Aggregate per-feed intergroup proportions to per-user-per-day averages.
+Regenerate per-feed intergroup proportion from generated_feeds + ml_inference_intergroup,
+then aggregate to per-user-per-day averages.
 
-Input (in this directory):
-- per_feed_prop_intergroup.csv
-  Columns include:
-    - bluesky_handle
-    - condition
-    - feed_generation_timestamp (format: %Y-%m-%d-%H:%M:%S)
-    - prop_intergroup_labeled (per-feed proportion of intergroup over labeled posts)
+Loads feeds (generated_feeds) and intergroup labels (ml_inference_intergroup). Per-feed,
+computes the proportion of posts with intergroup label = 1 among labeled posts only.
+Joins with user data for handle/condition, then aggregates by user+condition+date and
+exports per_user_per_day_average_prop_intergroup.csv.
 
 Output (written in this directory):
 - per_user_per_day_average_prop_intergroup.csv
   Columns:
-    - handle  (renamed from bluesky_handle)
+    - handle
     - condition
-    - date    (partition date derived from feed_generation_timestamp)
+    - date
     - feed_proportion_intergroup (mean of per-feed proportions for that user+day)
 """
 
 from __future__ import annotations
+
 import os
+from typing import cast
 
 import pandas as pd
 
-from lib.constants import study_start_date, study_end_date
 from lib.datetime_utils import get_partition_dates
 from lib.helper import get_partition_date_from_timestamp
+from lib.log.logger import get_logger
+from services.calculate_analytics.shared.constants import (
+    STUDY_END_DATE,
+    STUDY_START_DATE,
+    exclude_partition_dates,
+)
+from services.calculate_analytics.shared.data_loading.feeds import get_feeds_per_user
+from services.calculate_analytics.shared.data_loading.labels import (
+    load_intergroup_labels_for_date_range,
+)
+from services.calculate_analytics.shared.data_loading.users import load_user_data
+from services.fetch_posts_used_in_feeds.helper import load_feed_from_json_str
 
-BASE_DIR = os.path.dirname(__file__)
-INPUT_CSV = os.path.join(BASE_DIR, "per_feed_prop_intergroup.csv")
+logger = get_logger(__file__)
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 OUTPUT_CSV = os.path.join(
     BASE_DIR,
     "per_user_per_day_average_prop_intergroup.csv",
@@ -42,187 +54,213 @@ REQUIRED_COLUMNS = [
 ]
 
 
+def _collect_all_feed_uris(feeds_df: pd.DataFrame) -> set[str]:
+    """Collect all post URIs that appear in any feed."""
+    all_uris: set[str] = set()
+    for row in feeds_df.itertuples(index=False):
+        feed_str = getattr(row, "feed", None)
+        if feed_str is None:
+            continue
+        feed = load_feed_from_json_str(feed_str)
+        if isinstance(feed, list):
+            for post in feed:
+                uri = post.get("item")
+                if uri:
+                    all_uris.add(uri)
+    return all_uris
+
+
+def _build_per_feed_proportion_table(
+    feeds_df: pd.DataFrame,
+    uri_to_label: dict[str, int],
+) -> pd.DataFrame:
+    """Build a DataFrame with one row per feed: bluesky_user_did, feed_generation_timestamp, prop_intergroup_labeled."""
+    rows: list[dict] = []
+    for row in feeds_df.itertuples(index=False):
+        feed_str = getattr(row, "feed", None)
+        if feed_str is None:
+            continue
+        feed = load_feed_from_json_str(feed_str)
+        if not isinstance(feed, list):
+            user_did = getattr(row, "bluesky_user_did", "?")
+            logger.warning(f"Feed for user {user_did} is not a list, skipping")
+            continue
+        labels_in_feed: list[int] = []
+        for post in feed:
+            uri = post.get("item")
+            if not uri:
+                continue
+            label = uri_to_label.get(uri)
+            if label in (0, 1):
+                labels_in_feed.append(label)
+        n_posts = len(feed)
+        n_labeled = len(labels_in_feed)
+        if n_labeled == 0:
+            prop = float("nan")
+        else:
+            prop = sum(labels_in_feed) / n_labeled
+        rows.append(
+            {
+                "bluesky_user_did": getattr(row, "bluesky_user_did"),
+                "feed_generation_timestamp": getattr(row, "feed_generation_timestamp"),
+                "prop_intergroup_labeled": prop,
+                "n_posts_in_feed": n_posts,
+                "n_labeled_posts_in_feed": n_labeled,
+            }
+        )
+    return pd.DataFrame(rows)
+
+
 def add_date_column(df: pd.DataFrame) -> pd.DataFrame:
     ts = df["feed_generation_timestamp"].astype(str)
+    df = df.copy()
     df["date"] = ts.map(get_partition_date_from_timestamp)
     return df
 
 
-def get_unique_study_handles_and_conditions(df: pd.DataFrame) -> pd.DataFrame:
-    """Get unique handles and conditions from the dataframe."""
-    result: pd.DataFrame = df[["handle", "condition"]].drop_duplicates()  # type: ignore
-    return result
-
-
 def filter_records(df: pd.DataFrame) -> pd.DataFrame:
-    """Filter records based on business logic."""
-
-    # filter by date range
-    date_range_mask = (df["date"] >= study_start_date) & (df["date"] <= study_end_date)
-    df = df[date_range_mask].copy()  # type: ignore
-
-    # filter out placeholder handle
-    handle_mask = df["bluesky_handle"] != "default"
-    df = df[handle_mask].copy()  # type: ignore
-
-    # grab only relevant columns.
-    columns_to_keep = REQUIRED_COLUMNS
-    df = df.loc[:, columns_to_keep].copy()
-
-    return df
+    """Filter records by study date range and exclude placeholder handle."""
+    date_range_mask = (df["date"] >= STUDY_START_DATE) & (df["date"] <= STUDY_END_DATE)
+    filtered: pd.DataFrame = df.loc[date_range_mask].copy()
+    if "bluesky_handle" in filtered.columns:
+        handle_mask = filtered["bluesky_handle"] != "default"
+        filtered = filtered.loc[handle_mask].copy()
+    date_exclude_mask = ~filtered["date"].isin(exclude_partition_dates)
+    filtered = filtered.loc[date_exclude_mask].copy()
+    columns_to_keep = [c for c in REQUIRED_COLUMNS if c in filtered.columns]
+    if columns_to_keep:
+        filtered = filtered.loc[:, columns_to_keep].copy()
+    return filtered
 
 
 def aggregate_by_user_and_date(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Group by user handle, condition, and date, then compute the mean of per-feed
-    intergroup proportion for each group. Renames 'bluesky_handle' column to 'handle'.
-    """
+    """Group by bluesky_handle, condition, date; aggregate prop_intergroup_labeled with mean."""
     grouped = df.groupby(
         ["bluesky_handle", "condition", "date"],
         as_index=False,
         dropna=False,
     )
-    aggregated: pd.DataFrame = grouped.agg(
+    aggregated = grouped.agg(
         feed_proportion_intergroup=("prop_intergroup_labeled", "mean"),
-    )  # type: ignore
-    return aggregated
+    )
+    return pd.DataFrame(aggregated)
 
 
 def rename_handle_column(aggregated: pd.DataFrame) -> pd.DataFrame:
-    """Rename the 'bluesky_handle' column to 'handle'."""
-    result: pd.DataFrame = aggregated.rename(columns={"bluesky_handle": "handle"})  # type: ignore
-    return result
+    return aggregated.rename(columns={"bluesky_handle": "handle"})
 
 
 def get_study_dates() -> pd.DataFrame:
-    """Get all dates in the study window."""
-    all_dates = get_partition_dates(
-        start_date=study_start_date,
-        end_date=study_end_date,
-        exclude_partition_dates=[],
+    all_dates: list[str] = get_partition_dates(
+        start_date=STUDY_START_DATE,
+        end_date=STUDY_END_DATE,
+        exclude_partition_dates=exclude_partition_dates,
     )
-    dates_df = pd.DataFrame({"date": all_dates})
-    return dates_df
+    return pd.DataFrame({"date": all_dates})
 
 
 def create_user_condition_date_combinations(
     handle_condition_df: pd.DataFrame,
     dates_df: pd.DataFrame,
 ) -> pd.DataFrame:
-    """Gets all combinations of user handles and conditions with all dates in
-    the study window.
-
-    Does so via cross-joining the handle-condition pairs with the dates.
-
-    Creates a cartesian product ensuring every date exists for every
-    (handle, condition) combination.
-
-    Args:
-        handle_condition_df: DataFrame with 'handle' and 'condition' columns
-        dates_df: DataFrame with 'date' column
-
-    Returns:
-        DataFrame with all combinations of (handle, condition, date)
-    """
     handle_condition_df = handle_condition_df.copy()
     dates_df = dates_df.copy()
-
     handle_condition_df["__key"] = 1
     dates_df["__key"] = 1
-
-    user_condition_date_combinations: pd.DataFrame = handle_condition_df.merge(
-        dates_df, on="__key"
-    ).drop(columns="__key")
-
-    return user_condition_date_combinations
+    combined: pd.DataFrame = handle_condition_df.merge(dates_df, on="__key").drop(
+        columns="__key"
+    )
+    return combined
 
 
 def fill_user_condition_date_combinations(
     user_condition_date_combinations: pd.DataFrame,
     per_user_per_day_aggregated: pd.DataFrame,
 ) -> pd.DataFrame:
-    """Fills in the user-condition-date combinations with the
-    per-user-per-day aggregated data.
-
-    Joins on the combination of user handle, condition, and date. Imputes
-    null values for dates where no data exists.
-    """
     merge_cols = ["handle", "condition", "date"]
-    filled_user_condition_date_combinations: pd.DataFrame = (
-        user_condition_date_combinations.merge(
-            per_user_per_day_aggregated,
-            on=merge_cols,
-            how="left",
-            validate="one_to_one",
-        )
+    filled = user_condition_date_combinations.merge(
+        per_user_per_day_aggregated,
+        on=merge_cols,
+        how="left",
+        validate="one_to_one",
     )
-    return filled_user_condition_date_combinations
+    return pd.DataFrame(filled)
 
 
-def sort_filled_user_condition_date_combinations(
-    filled_user_condition_date_combinations: pd.DataFrame,
-) -> pd.DataFrame:
-    """Sorts the filled user-condition-date combinations by handle, date, and
-    condition in stable manner.
-    """
-    sorted_filled_user_condition_date_combinations: pd.DataFrame = (
-        filled_user_condition_date_combinations.sort_values(
-            by=["handle", "date", "condition"],
-            kind="stable",
-        )  # type: ignore
+def sort_and_export(filled: pd.DataFrame) -> None:
+    sorted_df = filled.sort_values(
+        by=["handle", "date", "condition"],
+        kind="stable",
     )
-    return sorted_filled_user_condition_date_combinations
-
-
-def export_user_condition_date_combinations(
-    sorted_filled_user_condition_date_combinations: pd.DataFrame,
-) -> None:
-    """Exports the sorted user-condition-date combinations to a CSV file."""
-    sorted_filled_user_condition_date_combinations.to_csv(
-        OUTPUT_CSV,
-        index=False,
-    )
-    print(
-        f"Wrote {len(sorted_filled_user_condition_date_combinations):,} rows to {OUTPUT_CSV}"
-    )
+    sorted_df.to_csv(OUTPUT_CSV, index=False)
+    logger.info(f"Wrote {len(sorted_df):,} rows to {OUTPUT_CSV}")
 
 
 def main() -> None:
-    df: pd.DataFrame = pd.read_csv(INPUT_CSV)
+    # 1. Setup
+    user_df, _user_date_to_week_df, valid_study_users_dids = load_user_data()
+    partition_dates = get_partition_dates(
+        start_date=STUDY_START_DATE,
+        end_date=STUDY_END_DATE,
+        exclude_partition_dates=exclude_partition_dates,
+    )
+    logger.info(
+        f"Loaded {len(valid_study_users_dids)} study users, {len(partition_dates)} partition dates"
+    )
 
-    df = add_date_column(df)
-    df = filter_records(df)
+    # 2. Load feeds (bluesky_user_did, feed, feed_generation_timestamp only)
+    feeds_df = get_feeds_per_user(valid_study_users_dids)
+    logger.info(f"Loaded {len(feeds_df)} feeds")
 
-    per_user_per_day: pd.DataFrame = aggregate_by_user_and_date(df)
+    # 3. Collect all feed URIs
+    all_feed_uris = _collect_all_feed_uris(feeds_df)
+    logger.info(f"Collected {len(all_feed_uris):,} unique URIs across feeds")
+
+    # 4. Load intergroup labels for date range (optionally filtered to feed URIs)
+    uri_to_label = load_intergroup_labels_for_date_range(
+        start_partition_date=STUDY_START_DATE,
+        end_partition_date=STUDY_END_DATE,
+        uris=all_feed_uris,
+    )
+    logger.info(f"Loaded {len(uri_to_label):,} intergroup labels (uri -> 0/1)")
+
+    # 5. Build per-feed proportion table (bluesky_user_did, feed_generation_timestamp, prop_intergroup_labeled)
+    per_feed_df = _build_per_feed_proportion_table(feeds_df, uri_to_label)
+    logger.info(f"Built per-feed table: {len(per_feed_df)} rows")
+
+    # 6. Join with user_df to add bluesky_handle and condition
+    user_cols = user_df[["bluesky_user_did", "bluesky_handle", "condition"]]
+    per_feed_df = per_feed_df.merge(
+        user_cols,
+        on="bluesky_user_did",
+        how="left",
+    )
+    logger.info(f"Joined with user data: {len(per_feed_df)} rows with handle/condition")
+
+    # 7. Add date, filter, aggregate to per-user-per-day, rename handle
+    per_feed_df = add_date_column(per_feed_df)
+    per_feed_df = filter_records(per_feed_df)
+    per_user_per_day = aggregate_by_user_and_date(per_feed_df)
     per_user_per_day = rename_handle_column(per_user_per_day)
 
-    handle_condition_df: pd.DataFrame = get_unique_study_handles_and_conditions(
-        per_user_per_day
+    # 8. Build full user-condition-date grid and fill with aggregated values
+    handle_condition_df = cast(
+        pd.DataFrame,
+        per_user_per_day[["handle", "condition"]].drop_duplicates(),
+    )
+    dates_df = cast(pd.DataFrame, get_study_dates())
+    full_combinations = create_user_condition_date_combinations(
+        handle_condition_df=handle_condition_df,
+        dates_df=dates_df,
+    )
+    filled = fill_user_condition_date_combinations(
+        user_condition_date_combinations=full_combinations,
+        per_user_per_day_aggregated=per_user_per_day,
     )
 
-    dates_df: pd.DataFrame = get_study_dates()
-
-    full_user_condition_date_combinations: pd.DataFrame = (
-        create_user_condition_date_combinations(
-            handle_condition_df=handle_condition_df,
-            dates_df=dates_df,
-        )
-    )
-
-    filled_user_condition_date_combinations: pd.DataFrame = (
-        fill_user_condition_date_combinations(
-            user_condition_date_combinations=full_user_condition_date_combinations,
-            per_user_per_day_aggregated=per_user_per_day,
-        )
-    )
-
-    sorted_filled_user_condition_date_combinations: pd.DataFrame = sort_filled_user_condition_date_combinations(
-        filled_user_condition_date_combinations=filled_user_condition_date_combinations,
-    )
-
-    export_user_condition_date_combinations(
-        sorted_filled_user_condition_date_combinations=sorted_filled_user_condition_date_combinations,
-    )
+    # 9. Sort and export
+    sort_and_export(filled)
+    logger.info("Done.")
 
 
 if __name__ == "__main__":
