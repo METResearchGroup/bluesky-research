@@ -59,29 +59,41 @@ def _parse_feeds_to_uri_lists(feeds_df: pd.DataFrame) -> list[dict[str, Any]]:
     """Parse each feed once into (bluesky_user_did, feed_generation_timestamp, list of URIs)."""
     parsed: list[dict[str, Any]] = []
     for row in feeds_df.to_dict("records"):
-        feed_str = row.get("feed")
+        feed_str = row["feed"]
+        bluesky_user_did = row["bluesky_user_did"]
+        feed_generation_timestamp = row["feed_generation_timestamp"]
+
         if feed_str is None:
             continue
         try:
             feed = load_feed_from_json_str(feed_str)
         except (ValueError, TypeError):
             logger.warning(
-                f"Feed for user {row.get('bluesky_user_did', '?')} is not valid JSON, skipping",
+                f"Feed for user {bluesky_user_did} is not valid JSON, skipping",
             )
             continue
+
         if not isinstance(feed, list):
             logger.warning(
-                f"Feed for user {row.get('bluesky_user_did', '?')} is not a list, skipping",
+                f"Feed for user {bluesky_user_did} is not a list, skipping",
             )
             continue
-        uris: list[str] = [x for x in (post.get("item") for post in feed) if x]
+
+        uris: list[str] = []
+
+        for post in feed:
+            item = post.get("item")
+            if item:
+                uris.append(item)
+
         parsed.append(
             {
-                "bluesky_user_did": row["bluesky_user_did"],
-                "feed_generation_timestamp": row["feed_generation_timestamp"],
+                "bluesky_user_did": bluesky_user_did,
+                "feed_generation_timestamp": feed_generation_timestamp,
                 "uris": uris,
             }
         )
+
     return parsed
 
 
