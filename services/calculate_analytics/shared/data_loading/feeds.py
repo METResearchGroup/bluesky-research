@@ -16,6 +16,7 @@ from services.calculate_analytics.shared.constants import (
     STUDY_START_DATE,
     STUDY_END_DATE,
 )
+from lib.db.models import StorageTier
 from services.fetch_posts_used_in_feeds.helper import load_feed_from_json_str
 
 logger = get_logger(__file__)
@@ -32,7 +33,7 @@ def get_feeds_for_partition_date(partition_date: str) -> pd.DataFrame:
     """
     feeds_df: pd.DataFrame = load_data_from_local_storage(
         service="generated_feeds",
-        storage_tiers=["cache"],
+        storage_tiers=[StorageTier.CACHE],
         partition_date=partition_date,
     )
     logger.info(f"Loaded {len(feeds_df)} feeds for partition date {partition_date}")
@@ -72,20 +73,23 @@ def map_users_to_posts_used_in_feeds(
 
 
 def get_feeds_per_user(valid_study_users_dids: set[str]) -> pd.DataFrame:
-    query = (
-        "SELECT bluesky_user_did, feed, feed_generation_timestamp FROM generated_feeds"
-    )
+    query = "SELECT feed_id, bluesky_user_did, feed, feed_generation_timestamp FROM generated_feeds"
     query_metadata = {
         "tables": [
             {
                 "name": "generated_feeds",
-                "columns": ["bluesky_user_did", "feed", "feed_generation_timestamp"],
+                "columns": [
+                    "feed_id",
+                    "bluesky_user_did",
+                    "feed",
+                    "feed_generation_timestamp",
+                ],
             }
         ]
     }
     generated_feeds_df: pd.DataFrame = load_data_from_local_storage(
         service="generated_feeds",
-        storage_tiers=["cache"],
+        storage_tiers=[StorageTier.CACHE],
         duckdb_query=query,
         query_metadata=query_metadata,
         start_partition_date=STUDY_START_DATE,
