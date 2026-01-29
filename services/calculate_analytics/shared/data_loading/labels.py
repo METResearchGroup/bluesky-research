@@ -10,13 +10,14 @@ from typing import Literal, Optional
 import pandas as pd
 
 from lib.db.manage_local_data import load_data_from_local_storage
+from lib.datetime_utils import calculate_start_end_date_for_lookback
+from lib.db.models import StorageTier
 from lib.log.logger import get_logger
-from services.backfill.posts_used_in_feeds.load_data import (
-    calculate_start_end_date_for_lookback,
-    default_num_days_lookback,
+from services.calculate_analytics.shared.constants import (
     default_min_lookback_date,
+    default_num_days_lookback,
+    integrations_list,
 )
-from services.calculate_analytics.shared.constants import integrations_list
 
 logger = get_logger(__file__)
 
@@ -32,7 +33,7 @@ def get_perspective_api_labels(
 ):
     df: pd.DataFrame = load_data_from_local_storage(
         service="ml_inference_perspective_api",
-        storage_tiers=["cache"],
+        storage_tiers=[StorageTier.CACHE],
         start_partition_date=lookback_start_date,
         end_partition_date=lookback_end_date,
         duckdb_query=duckdb_query,
@@ -144,7 +145,7 @@ def load_sociopolitical_labels_by_uris(
     """
     df: pd.DataFrame = load_data_from_local_storage(
         service="ml_inference_sociopolitical",
-        storage_tiers=["cache"],
+        storage_tiers=[StorageTier.CACHE],
         partition_date=partition_date,
         duckdb_query=duckdb_query,
         query_metadata=query_metadata,
@@ -185,7 +186,7 @@ def get_labels_for_partition_date(
 
     df = load_data_from_local_storage(
         service=f"ml_inference_{integration}",
-        storage_tiers=["cache"],
+        storage_tiers=[StorageTier.CACHE],
         start_partition_date=lookback_start_date,
         end_partition_date=lookback_end_date,
     )
@@ -225,7 +226,7 @@ def load_intergroup_labels_for_date_range(
     """
     df: pd.DataFrame = load_data_from_local_storage(
         service="ml_inference_intergroup",
-        storage_tiers=["cache"],
+        storage_tiers=[StorageTier.CACHE],
         start_partition_date=start_partition_date,
         end_partition_date=end_partition_date,
     )

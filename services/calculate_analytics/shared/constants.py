@@ -70,4 +70,8 @@ TOTAL_STUDY_WEEKS_PER_USER = 8
 STUDY_CONTENT_EARLIEST_LOOKBACK_DATE = "2024-09-15"
 exclude_partition_dates = ["2024-10-08"]
 
+# Lookback for loading labels by partition date (e.g. get_labels_for_partition_date).
+default_num_days_lookback = 5
+default_min_lookback_date = STUDY_CONTENT_EARLIEST_LOOKBACK_DATE
+
 integrations_list = ["perspective_api", "sociopolitical", "ime", "valence_classifier"]
