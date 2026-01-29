@@ -249,19 +249,146 @@ rm output_ml_inference_intergroup.db
 
 ## Week 4: 2024-10-19 to 2024-10-25
 
-- [ ] Enqueueing:
+- [X] Enqueueing:
   - `python -m pipelines.backfill_records_coordination.app --add-to-queue --record-type posts_used_in_feeds --integrations g --start-date 2024-10-19 --end-date 2024-10-25 --source-data-location s3 --sample-records --sample-proportion 0.10`
 
-- [ ] Running integrations:
-  - `python -m pipelines.backfill_records_coordination.app --run-integrations --integrations g --max-records-per-run 10000`
+```bash
+2026-01-28 16:30:37,323 INFO [logger.py]: Query metrics: {'duckdb': {'query': {'sql': 'SELECT uri FROM ml_inference_intergroup', 'result_shape': {'rows': 0, 'columns': 1}, 'result_memory_usage_mb': np.float64(0.000118255615234375)}, 'database': {'total_size_mb': None, 'table_count': 0}}}
+2026-01-28 16:30:37,323 INFO [logger.py]: Loaded 0 post URIs from S3 for service ml_inference_intergroup
+2026-01-28 16:30:37,352 INFO [logger.py]: Creating new SQLite DB for queue input_ml_inference_intergroup...
+2026-01-28 16:30:37,459 INFO [logger.py]: Writing 48437 items as 49 minibatches to DB.
+2026-01-28 16:30:37,459 INFO [logger.py]: Writing 49 minibatches to DB as 2 batches...
+2026-01-28 16:30:37,459 INFO [logger.py]: Processing batch 1/2...
+2026-01-28 16:30:37,504 INFO [logger.py]: Inserted 48437 posts into queue for integration: ml_inference_intergroup
+2026-01-28 16:30:37,507 INFO [logger.py]: [Progress: 1/1] Completed enqueuing records for integration: ml_inference_intergroup
+2026-01-28 16:30:37,507 INFO [logger.py]: [Progress: 1/1] Enqueuing records completed successfully.
+```
 
-- [ ] Writing cache to storage:
+- [X] Running integrations:
+  - `python -m pipelines.backfill_records_coordination.app --run-integrations --integrations g --max-records-per-run 50000`
+
+```bash
+(base) ➜  bluesky-research git:(intergroup-backfills-v2) ✗ uv run python -m pipelines.backfill_records_coordination.app --run-integrations --integrations g --max-records-per-run 50000
+2026-01-28 16:31:30,437 INFO [logger.py]: No connection provided, creating a new in-memory connection.
+2026-01-28 16:31:30,553 INFO [logger.py]: Not clearing any queues.
+2026-01-28 16:31:30,554 INFO [logger.py]: Running integrations: ml_inference_intergroup
+2026-01-28 16:31:30,554 INFO [logger.py]: Running integration 1 of 1: ml_inference_intergroup
+2026-01-28 16:31:37,571 INFO [logger.py]: Loading existing SQLite DB for queue input_ml_inference_intergroup...
+2026-01-28 16:31:37,576 INFO [logger.py]: Current queue size: 49 items
+2026-01-28 16:31:37,756 INFO [logger.py]: Loaded 48437 posts to classify.
+2026-01-28 16:31:37,757 INFO [logger.py]: Getting posts to classify for inference type intergroup.
+2026-01-28 16:31:37,757 INFO [logger.py]: Latest inference timestamp: None
+2026-01-28 16:31:37,782 INFO [logger.py]: After dropping duplicates, 48437 posts remain.
+2026-01-28 16:31:37,821 INFO [logger.py]: After filtering, 47674 posts remain.
+Execution time for get_posts_to_classify: 0 minutes, 2 seconds
+Memory usage for get_posts_to_classify: 109.421875 MB
+2026-01-28 16:31:39,068 INFO [logger.py]: Classifying 47674 posts with intergroup classifier...
+Classifying batches:   0%|                                                                                  | 0/96 [00:00<?, ?batch/s]2026-01-28 16:31:40,150 INFO [logger.py]: [Completion percentage: 0%] Processing batch 0/96...
+
+...
+
+2026-01-28 17:15:53,751 INFO [logger.py]: Processing batch 1/1...
+2026-01-28 17:15:53,752 INFO [logger.py]: Deleting 1 batch IDs from the input queue.
+2026-01-28 17:15:53,753 INFO [logger.py]: Deleted 0 items from queue.
+Classifying batches: 100%|█████████████████████████████████████████████| 96/96 [44:13<00:00, 27.64s/batch, successful=47674, failed=0]
+Execution time for run_batch_classification: 44 minutes, 15 seconds
+Memory usage for run_batch_classification: 88.03125 MB
+Execution time for orchestrate_classification: 44 minutes, 19 seconds
+Memory usage for orchestrate_classification: 150.453125 MB
+Execution time for classify_latest_posts: 44 minutes, 21 seconds
+Memory usage for classify_latest_posts: 150.4375 MB
+2026-01-28 17:15:56,988 INFO [logger.py]: Integration 1 of 1: ml_inference_intergroup completed successfully
+2026-01-28 17:15:56,989 INFO [logger.py]: Integrations completed successfully: ml_inference_intergroup
+```
+
+- [X] Writing cache to storage:
   - `python -m pipelines.backfill_records_coordination.app --write-cache-buffer-to-storage --service-source-buffer ml_inference_intergroup`
 
-- [ ] Migrate to S3:
+```bash
+(base) ➜  bluesky-research git:(intergroup-backfills-v2) ✗ uv run python -m pipelines.backfill_records_coordination.app --write-cache-buffer-to-storage --service-source-buffer ml_inference_intergroup
+2026-01-28 18:22:34,538 INFO [logger.py]: No connection provided, creating a new in-memory connection.
+2026-01-28 18:22:34,648 INFO [logger.py]: Not clearing any queues.
+2026-01-28 18:22:34,649 INFO [logger.py]: DB for queue output_ml_inference_intergroup already exists. Not overwriting, using existing DB...
+2026-01-28 18:22:34,649 INFO [logger.py]: Loading existing SQLite DB for queue output_ml_inference_intergroup...
+2026-01-28 18:22:34,658 INFO [logger.py]: Current queue size: 96 items
+2026-01-28 18:22:34,890 INFO [logger.py]: Exporting 47674 records to local storage for integration ml_inference_intergroup...
+2026-01-28 18:22:34,970 INFO [logger.py]: [Service = ml_inference_intergroup, Partition Date = 2024-10-18] Exporting n=550 records to /Users/mark/Documents/work/bluesky_research_data/ml_inference_intergroup/cache...
+2026-01-28 18:22:35,060 INFO [logger.py]: [Service = ml_inference_intergroup] Successfully exported ml_inference_intergroup data to /Users/mark/Documents/work/bluesky_research_data/ml_inference_intergroup/cache as Parquet
+2026-01-28 18:22:35,064 INFO [logger.py]: [Service = ml_inference_intergroup, Partition Date = 2024-10-19] Exporting n=4118 records to /Users/mark/Documents/work/bluesky_research_data/ml_inference_intergroup/cache...
+2026-01-28 18:22:35,072 INFO [logger.py]: [Service = ml_inference_intergroup] Successfully exported ml_inference_intergroup data to /Users/mark/Documents/work/bluesky_research_data/ml_inference_intergroup/cache as Parquet
+2026-01-28 18:22:35,077 INFO [logger.py]: [Service = ml_inference_intergroup, Partition Date = 2024-10-20] Exporting n=7199 records to /Users/mark/Documents/work/bluesky_research_data/ml_inference_intergroup/cache...
+2026-01-28 18:22:35,088 INFO [logger.py]: [Service = ml_inference_intergroup] Successfully exported ml_inference_intergroup data to /Users/mark/Documents/work/bluesky_research_data/ml_inference_intergroup/cache as Parquet
+2026-01-28 18:22:35,094 INFO [logger.py]: [Service = ml_inference_intergroup, Partition Date = 2024-10-21] Exporting n=7149 records to /Users/mark/Documents/work/bluesky_research_data/ml_inference_intergroup/cache...
+2026-01-28 18:22:35,105 INFO [logger.py]: [Service = ml_inference_intergroup] Successfully exported ml_inference_intergroup data to /Users/mark/Documents/work/bluesky_research_data/ml_inference_intergroup/cache as Parquet
+2026-01-28 18:22:35,111 INFO [logger.py]: [Service = ml_inference_intergroup, Partition Date = 2024-10-22] Exporting n=7230 records to /Users/mark/Documents/work/bluesky_research_data/ml_inference_intergroup/cache...
+2026-01-28 18:22:35,122 INFO [logger.py]: [Service = ml_inference_intergroup] Successfully exported ml_inference_intergroup data to /Users/mark/Documents/work/bluesky_research_data/ml_inference_intergroup/cache as Parquet
+2026-01-28 18:22:35,129 INFO [logger.py]: [Service = ml_inference_intergroup, Partition Date = 2024-10-23] Exporting n=8391 records to /Users/mark/Documents/work/bluesky_research_data/ml_inference_intergroup/cache...
+2026-01-28 18:22:35,142 INFO [logger.py]: [Service = ml_inference_intergroup] Successfully exported ml_inference_intergroup data to /Users/mark/Documents/work/bluesky_research_data/ml_inference_intergroup/cache as Parquet
+2026-01-28 18:22:35,148 INFO [logger.py]: [Service = ml_inference_intergroup, Partition Date = 2024-10-24] Exporting n=7234 records to /Users/mark/Documents/work/bluesky_research_data/ml_inference_intergroup/cache...
+2026-01-28 18:22:35,159 INFO [logger.py]: [Service = ml_inference_intergroup] Successfully exported ml_inference_intergroup data to /Users/mark/Documents/work/bluesky_research_data/ml_inference_intergroup/cache as Parquet
+2026-01-28 18:22:35,164 INFO [logger.py]: [Service = ml_inference_intergroup, Partition Date = 2024-10-25] Exporting n=5803 records to /Users/mark/Documents/work/bluesky_research_data/ml_inference_intergroup/cache...
+2026-01-28 18:22:35,174 INFO [logger.py]: [Service = ml_inference_intergroup] Successfully exported ml_inference_intergroup data to /Users/mark/Documents/work/bluesky_research_data/ml_inference_intergroup/cache as Parquet
+2026-01-28 18:22:35,175 INFO [logger.py]: Finished exporting 47674 records to local storage for integration ml_inference_intergroup...
+2026-01-28 18:22:35,176 INFO [logger.py]: Successfully wrote 47674 records to storage for integration ml_inference_intergroup
+```
+
+- [X] Migrate to S3:
   - `python -m pipelines.backfill_records_coordination.app --integrations g --migrate-to-s3`
 
-- [ ] Verify in Athena
+```bash
+(base) ➜  bluesky-research git:(intergroup-backfills-v2) ✗ uv run python -m pipelines.backfill_records_coordination.app --integrations g --migrate-to-s3
+2026-01-28 18:25:11,394 INFO [logger.py]: No connection provided, creating a new in-memory connection.
+2026-01-28 18:25:11,491 INFO [logger.py]: Not clearing any queues.
+2026-01-28 18:25:11,515 INFO [logger.py]: Initialized migration tracker database: /Users/mark/Documents/work/bluesky-research/pipelines/backfill_records_coordination/.migration_tracker/migration_tracker_backfill.db
+Processing prefixes:   0%|                                                                                      | 0/2 [00:00<?, ?it/s]Initializing migration tracker db for ml_inference_intergroup/active
+                                                                       2026-01-28 18:25:11,519 INFO [logger.py]: Registering 0 files for migration                                                           
+2026-01-28 18:25:11,520 INFO [logger.py]: Registered 0 files for migration
+Initialized migration tracker db for ml_inference_intergroup/active (0 files)
+Initializing migration tracker db for ml_inference_intergroup/cache
+                                                                                                                                     2026-01-28 18:25:11,528 INFO [logger.py]: Registering 111 files for migration                                                          
+2026-01-28 18:25:11,533 INFO [logger.py]: Registered 111 files for migration
+Initialized migration tracker db for ml_inference_intergroup/cache (111 files)
+Processing prefixes: 100%|█████████████████████████████████████████████████████████████████████████████| 2/2 [00:00<00:00, 141.61it/s]
+Finished initializing migration tracker db
+2026-01-28 18:25:11,537 INFO [credentials.py]: Found credentials in shared credentials file: ~/.aws/credentials
+Migrating ml_inference_intergroup/active: 0it [00:00, ?it/s]                                                    | 0/2 [00:00<?, ?it/s]
+Migrating ml_inference_intergroup/active: 0it [00:00, ?it/s]                                                                         2026-01-28 18:25:11,607 INFO [logger.py]: Marked file as started: /Users/mark/Documents/work/bluesky_research_data/ml_inference_intergroup/cache/partition_date=2024-10-21/9964287ba9ed43a3b2f1a34129522fc9-0.parquet
+2026-01-28 18:25:11,609 INFO [logger.py]: Migrating file /Users/mark/Documents/work/bluesky_research_data/ml_inference_intergroup/cache/partition_date=2024-10-21/9964287ba9ed43a3b2f1a34129522fc9-0.parquet to S3 (0.83 MB)
+2026-01-28 18:25:12,064 INFO [logger.py]: Successfully uploaded /Users/mark/Documents/work/bluesky_research_data/ml_inference_intergroup/cache/partition_date=2024-10-21/9964287ba9ed43a3b2f1a34129522fc9-0.parquet to s3://bluesky-research/bluesky_research/2024_nature_paper_study_data/ml_inference_intergroup/cache/partition_date=2024-10-21/9964287ba9ed43a3b2f1a34129522fc9-0.parquet
+2026-01-28 18:25:12,066 INFO [logger.py]: Marked file as completed: /Users/mark/Documents/work/bluesky_research_data/ml_inference_intergroup/cache/partition_date=2024-10-21/9964287ba9ed43a3b2f1a34129522fc9-0.parquet
+                                                                                                                                     2026-01-28 18:25:12,067 INFO [logger.py]: Marked file as started: /Users/mark/Documents/work/bluesky_research_data/ml_inference_intergroup/cache/partition_date=2024-10-19/0c45544612b74e37bc3a2e58f1da4f68-0.parquet
+2026-01-28 18:25:12,067 INFO [logger.py]: Migrating file /Users/mark/Documents/work/bluesky_research_data/ml_inference_intergroup/cache/partition_date=2024-10-19/0c45544612b74e37bc3a2e58f1da4f68-0.parquet to S3 (0.47 MB)
+2026-01-28 18:25:12,216 INFO [logger.py]: Successfully uploaded /Users/mark/Documents/work/bluesky_research_data/ml_inference_intergroup/cache/partition_date=2024-10-19/0c45544612b74e37bc3a2e58f1da4f68-0.parquet to s3://bluesky-research/bluesky_research/2024_nature_paper_study_data/ml_inference_intergroup/cache/partition_date=2024-10-19/0c45544612b74e37bc3a2e58f1da4f68-0.parquet
+2026-01-28 18:25:12,219 INFO [logger.py]: Marked file as completed: /Users/mark/Documents/work/bluesky_research_data/ml_inference_intergroup/cache/partition_date=2024-10-19/0c45544612b74e37bc3a2e58f1da4f68-0.parquet
+                                                                                                                                     2026-01-28 18:25:12,221 INFO [logger.py]: Marked file as started: /Users/mark/Documents/work/bluesky_research_data/ml_inference_intergroup/cache/partition_date=2024-10-18/c3cea6c41ed14df582f9db319b4a1f66-0.parquet
+2026-01-28 18:25:12,221 INFO [logger.py]: Migrating file /Users/mark/Documents/work/bluesky_research_data/ml_inference_intergroup/cache/partition_date=2024-10-18/c3cea6c41ed14df582f9db319b4a1f66-0.parquet to S3 (0.07 MB)
+2026-01-28 18:25:12,280 INFO [logger.py]: Successfully uploaded /Users/mark/Documents/work/bluesky_research_data/ml_inference_intergroup/cache/partition_date=2024-10-18/c3cea6c41ed14df582f9db319b4a1f66-0.parquet to s3://bluesky-research/bluesky_research/2024_nature_paper_study_data/ml_inference_intergroup/cache/partition_date=2024-10-18/c3cea6c41ed14df582f9db319b4a1f66-0.parquet
+2026-01-28 18:25:12,284 INFO [logger.py]: Marked file as completed: /Users/mark/Documents/work/bluesky_research_data/ml_inference_intergroup/cache/partition_date=2024-10-18/c3cea6c41ed14df582f9db319b4a1f66-0.parquet
+2026-01-28 18:25:12,286 INFO [logger.py]: Marked file as started: /Users/mark/Documents/work/bluesky_research_data/ml_inference_intergroup/cache/partition_date=2024-10-20/8fff4fd1850d4f0380ac1ff6c43d490a-0.parquet
+2026-01-28 18:25:12,287 INFO [logger.py]: Migrating file /Users/mark/Documents/work/bluesky_research_data/ml_inference_intergroup/cache/partition_date=2024-10-20/8fff4fd1850d4f0380ac1ff6c43d490a-0.parquet to S3 (0.81 MB)
+2026-01-28 18:25:12,530 INFO [logger.py]: Successfully uploaded /Users/mark/Documents/work/bluesky_research_data/ml_inference_intergroup/cache/partition_date=2024-10-20/8fff4fd1850d4f0380ac1ff6c43d490a-0.parquet to s3://bluesky-research/bluesky_research/2024_nature_paper_study_data/ml_inference_intergroup/cache/partition_date=2024-10-20/8fff4fd1850d4f0380ac1ff6c43d490a-0.parquet
+2026-01-28 18:25:12,535 INFO [logger.py]: Marked file as completed: /Users/mark/Documents/work/bluesky_research_data/ml_inference_intergroup/cache/partition_date=2024-10-20/8fff4fd1850d4f0380ac1ff6c43d490a-0.parquet
+                                                                                                                                     2026-01-28 18:25:12,539 INFO [logger.py]: Marked file as started: /Users/mark/Documents/work/bluesky_research_data/ml_inference_intergroup/cache/partition_date=2024-10-25/134c1b0d25834b84b4f0bcdd5b4402d4-0.parquet
+2026-01-28 18:25:12,540 INFO [logger.py]: Migrating file /Users/mark/Documents/work/bluesky_research_data/ml_inference_intergroup/cache/partition_date=2024-10-25/134c1b0d25834b84b4f0bcdd5b4402d4-0.parquet to S3 (0.67 MB)
+2026-01-28 18:25:12,714 INFO [logger.py]: Successfully uploaded /Users/mark/Documents/work/bluesky_research_data/ml_inference_intergroup/cache/partition_date=2024-10-25/134c1b0d25834b84b4f0bcdd5b4402d4-0.parquet to s3://bluesky-research/bluesky_research/2024_nature_paper_study_data/ml_inference_intergroup/cache/partition_date=2024-10-25/134c1b0d25834b84b4f0bcdd5b4402d4-0.parquet
+2026-01-28 18:25:12,715 INFO [logger.py]: Marked file as completed: /Users/mark/Documents/work/bluesky_research_data/ml_inference_intergroup/cache/partition_date=2024-10-25/134c1b0d25834b84b4f0bcdd5b4402d4-0.parquet
+                                                                                                                                     2026-01-28 18:25:12,716 INFO [logger.py]: Marked file as started: /Users/mark/Documents/work/bluesky_research_data/ml_inference_intergroup/cache/partition_date=2024-10-22/314018413fb64a5798c6bf9394d66efe-0.parquet
+2026-01-28 18:25:12,717 INFO [logger.py]: Migrating file /Users/mark/Documents/work/bluesky_research_data/ml_inference_intergroup/cache/partition_date=2024-10-22/314018413fb64a5798c6bf9394d66efe-0.parquet to S3 (0.84 MB)
+2026-01-28 18:25:12,925 INFO [logger.py]: Successfully uploaded /Users/mark/Documents/work/bluesky_research_data/ml_inference_intergroup/cache/partition_date=2024-10-22/314018413fb64a5798c6bf9394d66efe-0.parquet to s3://bluesky-research/bluesky_research/2024_nature_paper_study_data/ml_inference_intergroup/cache/partition_date=2024-10-22/314018413fb64a5798c6bf9394d66efe-0.parquet
+2026-01-28 18:25:12,926 INFO [logger.py]: Marked file as completed: /Users/mark/Documents/work/bluesky_research_data/ml_inference_intergroup/cache/partition_date=2024-10-22/314018413fb64a5798c6bf9394d66efe-0.parquet
+                                                                                                                                     2026-01-28 18:25:12,927 INFO [logger.py]: Marked file as started: /Users/mark/Documents/work/bluesky_research_data/ml_inference_intergroup/cache/partition_date=2024-10-23/d6b4beb8b52c42c38582797d8946ae6f-0.parquet
+2026-01-28 18:25:12,927 INFO [logger.py]: Migrating file /Users/mark/Documents/work/bluesky_research_data/ml_inference_intergroup/cache/partition_date=2024-10-23/d6b4beb8b52c42c38582797d8946ae6f-0.parquet to S3 (0.97 MB)
+2026-01-28 18:25:13,161 INFO [logger.py]: Successfully uploaded /Users/mark/Documents/work/bluesky_research_data/ml_inference_intergroup/cache/partition_date=2024-10-23/d6b4beb8b52c42c38582797d8946ae6f-0.parquet to s3://bluesky-research/bluesky_research/2024_nature_paper_study_data/ml_inference_intergroup/cache/partition_date=2024-10-23/d6b4beb8b52c42c38582797d8946ae6f-0.parquet
+2026-01-28 18:25:13,163 INFO [logger.py]: Marked file as completed: /Users/mark/Documents/work/bluesky_research_data/ml_inference_intergroup/cache/partition_date=2024-10-23/d6b4beb8b52c42c38582797d8946ae6f-0.parquet
+                                                                                                                                     2026-01-28 18:25:13,164 INFO [logger.py]: Marked file as started: /Users/mark/Documents/work/bluesky_research_data/ml_inference_intergroup/cache/partition_date=2024-10-24/601d4125ec284ca296b6057857c3971b-0.parquet
+2026-01-28 18:25:13,164 INFO [logger.py]: Migrating file /Users/mark/Documents/work/bluesky_research_data/ml_inference_intergroup/cache/partition_date=2024-10-24/601d4125ec284ca296b6057857c3971b-0.parquet to S3 (0.84 MB)
+2026-01-28 18:25:13,368 INFO [logger.py]: Successfully uploaded /Users/mark/Documents/work/bluesky_research_data/ml_inference_intergroup/cache/partition_date=2024-10-24/601d4125ec284ca296b6057857c3971b-0.parquet to s3://bluesky-research/bluesky_research/2024_nature_paper_study_data/ml_inference_intergroup/cache/partition_date=2024-10-24/601d4125ec284ca296b6057857c3971b-0.parquet
+2026-01-28 18:25:13,370 INFO [logger.py]: Marked file as completed: /Users/mark/Documents/work/bluesky_research_data/ml_inference_intergroup/cache/partition_date=2024-10-24/601d4125ec284ca296b6057857c3971b-0.parquet
+Migrating ml_inference_intergroup/cache: 100%|██████████████████████████████████████████████████████████| 8/8 [00:01<00:00,  4.54it/s]
+Processing prefixes: 100%|██████████████████████████████████████████████████████████████████████████████| 2/2 [00:01<00:00,  1.13it/s]
+```
+
+- [X] Verify in Athena
 
 ```sql
 MSCK REPAIR TABLE archive_ml_inference_intergroup;
@@ -276,11 +403,47 @@ FROM (
 GROUP BY label;
 ```
 
+```bash
+#	label	_col1
+1	1	32814
+2	-1	2
+3	0	322590
+```
+
 ```sql
 SELECT partition_date, COUNT(*) as total_labels
 FROM archive_ml_inference_intergroup
 GROUP BY 1
 ORDER BY 1 ASC
+```
+
+```bash
+#	partition_date	total_labels
+1	2024-09-29	1503
+2	2024-09-30	3894
+3	2024-10-01	3726
+4	2024-10-02	2591
+5	2024-10-03	2982
+6	2024-10-04	903
+7	2024-10-05	325
+8	2024-10-06	393
+9	2024-10-07	45
+10	2024-10-10	4007
+11	2024-10-11	27844
+12	2024-10-12	65829
+13	2024-10-13	68387
+14	2024-10-14	72989
+15	2024-10-15	46752
+16	2024-10-16	4502
+17	2024-10-17	414
+18	2024-10-18	1212
+19	2024-10-19	4118
+20	2024-10-20	7199
+21	2024-10-21	7149
+22	2024-10-22	7230
+23	2024-10-23	8391
+24	2024-10-24	7234
+25	2024-10-25	5803
 ```
 
 ```sql
@@ -294,7 +457,36 @@ GROUP BY 1
 ORDER BY 1 ASC
 ```
 
-- [ ] Inspect input and output queues
+```bash
+#	partition_date	total_labels
+1	2024-09-29	128
+2	2024-09-30	408
+3	2024-10-01	361
+4	2024-10-02	190
+5	2024-10-03	307
+6	2024-10-04	111
+7	2024-10-05	20
+8	2024-10-06	40
+9	2024-10-07	10
+10	2024-10-10	386
+11	2024-10-11	2024
+12	2024-10-12	5947
+13	2024-10-13	6769
+14	2024-10-14	7375
+15	2024-10-15	4219
+16	2024-10-16	463
+17	2024-10-17	38
+18	2024-10-18	76
+19	2024-10-19	317
+20	2024-10-20	530
+21	2024-10-21	578
+22	2024-10-22	603
+23	2024-10-23	738
+24	2024-10-24	614
+25	2024-10-25	563
+```
+
+- [X] Inspect input and output queues
 
 ```sql
 -- Check input queue
@@ -304,13 +496,19 @@ sqlite3 input_ml_inference_intergroup.db "SELECT COUNT(*) FROM queue;"
 sqlite3 output_ml_inference_intergroup.db "SELECT COUNT(*) FROM queue;"
 ```
 
-- [ ] Delete input and output queues
+```bash
+(base) ➜  queue sqlite3 input_ml_inference_intergroup.db "SELECT COUNT(*) FROM queue;"
+0
+(base) ➜  queue sqlite3 output_ml_inference_intergroup.db "SELECT COUNT(*) FROM queue;"
+96
+```
+
+- [X] Delete input and output queues
 
 ```bash
 rm input_ml_inference_intergroup.db
 rm output_ml_inference_intergroup.db
 ```
-
 
 ## Weeks 5, 6, 7: 2024-10-26 to 2024-11-15
 
