@@ -47,6 +47,12 @@ def start_app(
         print("Stopping data stream...")
         stream_stop_event.set()
         stream_thread.join()  # wait for thread to finish
+        # Best-effort flush of any pending cache-write batches.
+        try:
+            context.file_utilities.flush_batches()
+        except Exception:
+            # Don't block shutdown on flush failures.
+            pass
         end_time = time.time()
         end_time_str = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(end_time))
         total_minutes = round((end_time - start_time) / 60, 1)

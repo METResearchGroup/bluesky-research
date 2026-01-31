@@ -88,7 +88,11 @@ def _nested_read_strategy(
             full_path = os.path.join(nested_path, filename)
             try:
                 data = file_utilities.read_json(full_path)
-                records.append(data)
+                # Support batched cache files (list[dict]) as well as single-record dicts.
+                if isinstance(data, list):
+                    records.extend([d for d in data if isinstance(d, dict)])
+                elif isinstance(data, dict):
+                    records.append(data)
                 filepaths.append(full_path)
             except (
                 json.JSONDecodeError,
@@ -133,7 +137,11 @@ def _follow_read_strategy(
             full_path = os.path.join(follow_type_path, filename)
             try:
                 data = file_utilities.read_json(full_path)
-                records.append(data)
+                # Support batched cache files (list[dict]) as well as single-record dicts.
+                if isinstance(data, list):
+                    records.extend([d for d in data if isinstance(d, dict)])
+                elif isinstance(data, dict):
+                    records.append(data)
                 filepaths.append(full_path)
             except (
                 json.JSONDecodeError,
