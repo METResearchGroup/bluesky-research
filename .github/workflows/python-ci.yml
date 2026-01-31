@@ -54,6 +54,20 @@ jobs:
       run: |
         # stop the build if there are Python syntax errors or undefined names
         uv run ruff check .
+
+    - name: Type check with ty (non-blocking)
+      run: |
+        # Non-blocking until the repo is fully type-clean; still surfaces diagnostics in CI logs/annotations.
+        uv run ty check \
+          --output-format github \
+          --respect-ignore-files \
+          --exclude "**/*.ipynb" \
+          --exclude "assets/" \
+          --exclude "demos/" \
+          --exclude "deprecated/" \
+          --exclude "experiments/" \
+          --exclude "terraform/" \
+          --exit-zero
     - name: Bandit security scan
       run: |
         uv run bandit -r . \
