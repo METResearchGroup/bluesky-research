@@ -1,0 +1,30 @@
+@config "../tailwind.config.ts";
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --background: 250 249 245;
+    --foreground: 20 20 19;
+    --primary: 217 119 87;
+    --primary-foreground: 250 249 245;
+    --secondary: 106 155 204;
+    --secondary-foreground: 250 249 245;
+    --muted: 232 230 220;
+    --muted-foreground: 176 174 165;
+    --accent: 217 119 87;
+    --accent-foreground: 250 249 245;
+    --border: 176 174 165;
+    --input: 176 174 165;
+    --ring: 217 119 87;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
