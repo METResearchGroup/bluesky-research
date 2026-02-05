@@ -27,6 +27,7 @@ def get_posts_to_classify(
     timestamp: Optional[str] = None,
     previous_run_metadata: Optional[dict] = None,
     columns: Optional[list[str]] = None,
+    max_records_per_run: Optional[int] = None,
 ) -> list[PostToLabelModel]:
     """Retrieves posts from the appropriate queue for classification.
 
@@ -50,6 +51,9 @@ def get_posts_to_classify(
                 - inference_timestamp (Optional[str]): Timestamp of last inference
         columns (Optional[list[str]]): List of columns to return in output.
             Defaults to ["uri", "text", "preprocessing_timestamp", "batch_id", "batch_metadata"].
+        max_records_per_run (Optional[int]): Maximum number of records to process for this run.
+            If provided, only complete batches will be returned up to the limit (see
+            cap_max_records_for_run). This limit is applied before claiming batches.
 
     Returns:
         list[PostToLabelModel]: List of posts to classify as strongly-typed models.
@@ -72,7 +76,9 @@ def get_posts_to_classify(
         7. Drops duplicate URIs
         8. Filters posts using filter_posts_df()
         9. Ensures all requested columns exist (adds missing ones with None)
-        10. Returns filtered posts as PostToLabelModel instances
+        10. Optionally caps records (complete batches only) if max_records_per_run is provided
+        11. Claims selected batch IDs (pending -> processing) to avoid concurrent duplication
+        12. Returns only posts from successfully claimed batches as PostToLabelModel instances
     """
     # Map inference types to queue names
     queue_mapping = {
@@ -147,7 +153,39 @@ def get_posts_to_classify(
     # Select only requested columns
     dicts = posts_df[columns].to_dict(orient="records")  # type: ignore[arg-type]
 
-    return [PostToLabelModel(**row) for row in dicts]
+    posts_to_classify = [PostToLabelModel(**row) for row in dicts]
+
+    # Apply max_records_per_run (complete batches only) before claiming.
+    if max_records_per_run is not None:
+        posts_to_classify = cap_max_records_for_run(
+            posts_to_classify=posts_to_classify,
+            max_records_per_run=max_records_per_run,
+        )
+
+    if not posts_to_classify:
+        logger.info("No posts to classify after filtering/limiting.")
+        return []
+
+    selected_batch_ids = list({post.batch_id for post in posts_to_classify})
+    logger.info(
+        f"Attempting to claim {len(selected_batch_ids)} batch IDs for inference type {inference_type}."
+    )
+
+    claimed_items = queue.batch_claim_items_by_ids(ids=selected_batch_ids)
+    claimed_batch_ids = {item.id for item in claimed_items if item.id is not None}
+
+    final_posts = [p for p in posts_to_classify if p.batch_id in claimed_batch_ids]
+    if not final_posts and selected_batch_ids:
+        logger.info(
+            "No posts to classify after claiming batches. This can happen when other workers "
+            "claim the same pending batches concurrently."
+        )
+    else:
+        logger.info(
+            f"Claimed {len(claimed_batch_ids)} batches and returning {len(final_posts)} posts."
+        )
+
+    return final_posts
 
 
 def cap_max_records_for_run(
@@ -262,12 +300,8 @@ def orchestrate_classification(
             inference_type=config.queue_inference_type,
             timestamp=backfill_latest_timestamp,
             previous_run_metadata=previous_run_metadata,
+            max_records_per_run=max_records_per_run,
         )
-        if max_records_per_run is not None:
-            posts_to_classify = cap_max_records_for_run(
-                posts_to_classify=posts_to_classify,
-                max_records_per_run=max_records_per_run,
-            )
 
         logger.info(config.get_log_message(len(posts_to_classify)))
 

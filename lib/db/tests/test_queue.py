@@ -19,10 +19,16 @@ import pytest
 from typing import Generator
 import sqlite3
 
-from lib.db.queue import DEFAULT_BATCH_CHUNK_SIZE, DEFAULT_BATCH_WRITE_SIZE, Queue, QueueItem
+from lib.db.queue import (
+    DEFAULT_BATCH_CHUNK_SIZE,
+    DEFAULT_BATCH_WRITE_SIZE,
+    Queue,
+    QueueItem,
+)
 from lib.log.logger import get_logger
 
 logger = get_logger(__file__)
+
 
 def get_test_queue_name() -> str:
     """Generate unique test queue name with timestamp.
@@ -95,7 +101,7 @@ class TestAddItem:
         """
         test_item = {"test_key": "test_value"}
         test_metadata = {"source": "test"}
-        
+
         queue.add_item_to_queue(test_item, metadata=test_metadata)
         assert queue.get_queue_length() == 1
 
@@ -105,7 +111,7 @@ class TestBatchAdd:
         """Test batch adding multiple items processes all correctly.
 
         Verifies:
-        - All items are added successfully 
+        - All items are added successfully
         - Items are properly chunked based on batch_size
         - Chunks are written in batches based on batch_write_size
         - Metadata is stored for each chunk
@@ -116,14 +122,11 @@ class TestBatchAdd:
         """
         test_items = [{"key": f"value_{i}"} for i in range(5)]
         test_metadata = {"source": "batch_test"}
-        
+
         queue.batch_add_items_to_queue(
-            items=test_items,
-            metadata=test_metadata,
-            batch_size=2,
-            batch_write_size=1
+            items=test_items, metadata=test_metadata, batch_size=2, batch_write_size=1
         )
-        
+
         assert queue.get_queue_length() == 3  # Should create 3 chunks (2+2+1)
 
     def test_batch_add_items_with_write_batching(self, queue: Queue) -> None:
@@ -144,7 +147,7 @@ class TestBatchAdd:
             items=test_items,
             metadata=test_metadata,
             batch_size=2,  # Creates 5 chunks of 2 items each
-            batch_write_size=2  # Writes chunks in groups of 2
+            batch_write_size=2,  # Writes chunks in groups of 2
         )
 
         assert queue.get_queue_length() == 5  # Should have 5 total chunks
@@ -162,17 +165,18 @@ class TestBatchAdd:
         """
         test_items = [
             {"uri": "test1", "data": "first"},
-            {"uri": "test2", "data": "second"}, 
+            {"uri": "test2", "data": "second"},
             {"uri": "test1", "data": "duplicate"},  # Duplicate URI
-            {"uri": "test3", "data": "third"}
+            {"uri": "test3", "data": "third"},
         ]
-        
+
         queue.batch_add_items_to_queue(
             items=test_items,
             batch_size=2,  # Creates 2 chunks of 2 items
-            batch_write_size=1  # Write one chunk at a time
+            batch_write_size=1,  # Write one chunk at a time
         )
         assert queue.get_queue_length() == 2  # Should have 2 chunks
+
 
 class TestRemoveItem:
     def test_remove_item_from_queue(self, queue: Queue) -> None:
@@ -219,7 +223,7 @@ class TestBatchRemove:
         queue.batch_add_items_to_queue(
             test_items,
             metadata=test_metadata,
-            batch_size=1 # to guarantee 3 rows in the queue.
+            batch_size=1,  # to guarantee 3 rows in the queue.
         )
 
         # Remove 2 items
@@ -233,6 +237,112 @@ class TestBatchRemove:
         # One item should remain
         remaining_items = queue.batch_remove_items_from_queue()
         assert len(remaining_items) == 1
+
+
+class TestBatchClaimItemsByIds:
+    def test_claim_single_pending_item(self, queue: Queue) -> None:
+        """Test claiming a single pending item updates status and returns it."""
+        queue.add_item_to_queue({"key": "value"}, metadata={"source": "test"})
+
+        item_id = queue.load_item_ids_from_queue(limit=1)[0]
+        claimed = queue.batch_claim_items_by_ids([item_id])
+
+        assert len(claimed) == 1
+        assert claimed[0].id == item_id
+        assert claimed[0].status == "processing"
+
+        pending = queue.load_items_from_queue(status="pending")
+        assert pending == []
+        processing = queue.load_items_from_queue(status="processing")
+        assert len(processing) == 1
+        assert processing[0].id == item_id
+
+    def test_claim_multiple_items_makes_them_processing(self, queue: Queue) -> None:
+        """Test claiming multiple IDs claims only those IDs."""
+        queue.batch_add_items_to_queue(
+            items=[{"k": "v1"}, {"k": "v2"}, {"k": "v3"}],
+            batch_size=1,  # guarantee 3 rows
+        )
+        ids = queue.load_item_ids_from_queue()
+        assert len(ids) == 3
+
+        claimed = queue.batch_claim_items_by_ids(ids[:2])
+        claimed_ids = {c.id for c in claimed}
+        assert claimed_ids == set(ids[:2])
+
+        processing = {i.id for i in queue.load_items_from_queue(status="processing")}
+        pending = {i.id for i in queue.load_items_from_queue(status="pending")}
+        assert processing == set(ids[:2])
+        assert pending == {ids[2]}
+
+    def test_claim_ignores_nonexistent_and_non_pending_ids(self, queue: Queue) -> None:
+        """Test claiming ignores non-existent IDs and IDs not in pending status."""
+        queue.batch_add_items_to_queue(
+            items=[{"k": "v1"}, {"k": "v2"}],
+            batch_size=1,
+        )
+        ids = queue.load_item_ids_from_queue()
+        assert len(ids) == 2
+
+        # Move first item to processing via existing atomic remove.
+        removed = queue.remove_item_from_queue()
+        assert removed is not None
+        processing_id = removed.id
+        pending_id = ids[1] if processing_id == ids[0] else ids[0]
+
+        claimed = queue.batch_claim_items_by_ids([processing_id, pending_id, 999999])
+        assert {c.id for c in claimed} == {pending_id}
+
+        processing = {i.id for i in queue.load_items_from_queue(status="processing")}
+        assert processing == {processing_id, pending_id}
+
+    def test_claim_is_idempotent(self, queue: Queue) -> None:
+        """Test claiming the same ID twice only claims it once."""
+        queue.add_item_to_queue({"key": "value"})
+        item_id = queue.load_item_ids_from_queue(limit=1)[0]
+
+        first = queue.batch_claim_items_by_ids([item_id])
+        second = queue.batch_claim_items_by_ids([item_id])
+
+        assert len(first) == 1
+        assert first[0].id == item_id
+        assert second == []
+
+    def test_claim_with_empty_id_list_returns_empty(self, queue: Queue) -> None:
+        """Test claiming with empty list is a no-op."""
+        assert queue.batch_claim_items_by_ids([]) == []
+
+
+class TestResetProcessingItemsToPending:
+    def test_dry_run_counts_only_processing(self, queue: Queue) -> None:
+        """Dry-run should report how many processing rows would be reset."""
+        queue.batch_add_items_to_queue(items=[{"k": "v1"}, {"k": "v2"}], batch_size=1)
+        ids = queue.load_item_ids_from_queue()
+        assert len(ids) == 2
+
+        # Move one row to processing
+        claimed = queue.batch_claim_items_by_ids([ids[0]])
+        assert len(claimed) == 1
+
+        count = queue.reset_processing_items_to_pending(dry_run=True)
+        assert count == 1
+
+        # Ensure no change in dry-run mode
+        processing = queue.load_items_from_queue(status="processing")
+        assert len(processing) == 1
+
+    def test_apply_resets_processing_to_pending(self, queue: Queue) -> None:
+        """Apply should reset processing rows back to pending."""
+        queue.batch_add_items_to_queue(items=[{"k": "v1"}, {"k": "v2"}], batch_size=1)
+        ids = queue.load_item_ids_from_queue()
+
+        queue.batch_claim_items_by_ids([ids[0]])
+        assert len(queue.load_items_from_queue(status="processing")) == 1
+
+        updated = queue.reset_processing_items_to_pending(dry_run=False)
+        assert updated == 1
+        assert len(queue.load_items_from_queue(status="processing")) == 0
+        assert len(queue.load_items_from_queue(status="pending")) == 2
 
 
 class TestBatchDelete:
@@ -277,15 +387,14 @@ class TestBatchDelete:
             {"key": "delete_1", "value": 2},
             {"key": "keep_2", "value": 3},
             {"key": "delete_2", "value": 4},
-            {"key": "keep_3", "value": 5}
+            {"key": "keep_3", "value": 5},
         ]
         queue.batch_add_items_to_queue(test_items, batch_size=1)
 
         # Get items to delete (those with 'delete' in key)
         items = queue.load_items_from_queue()
         ids_to_delete = [
-            item.id for item in items 
-            if "delete" in json.loads(item.payload)[0]["key"]
+            item.id for item in items if "delete" in json.loads(item.payload)[0]["key"]
         ]
 
         # Delete items
@@ -295,7 +404,7 @@ class TestBatchDelete:
         # Verify remaining items
         remaining_items = queue.load_items_from_queue()
         assert len(remaining_items) == 3
-        
+
         # Check that only 'keep' items remain
         for item in remaining_items:
             payload = json.loads(item.payload)[0]
@@ -350,7 +459,7 @@ class TestClearQueue:
         # Add test items
         test_items = [{"key": f"value_{i}"} for i in range(4)]
         queue.batch_add_items_to_queue(test_items, batch_size=1)
-        
+
         # Set some items to different statuses
         with queue._get_connection() as conn:
             conn.execute(
@@ -383,7 +492,7 @@ class TestClearQueue:
         # Add test items
         test_items = [{"key": f"value_{i}"} for i in range(3)]
         queue.batch_add_items_to_queue(test_items, batch_size=1)
-        
+
         # First clear
         first_clear_count = queue.clear_queue()
         assert first_clear_count == 3
@@ -469,16 +578,16 @@ class TestMetadataHandling:
         """
         test_item = {"test_key": "test_value"}
         test_metadata = {"source": "test", "priority": "high"}
-        
+
         queue.add_item_to_queue(test_item, metadata=test_metadata)
-        
+
         # Verify metadata through direct DB query and through load_items
         with queue._get_connection() as conn:
             cursor = conn.execute(
                 f"SELECT metadata FROM {queue.queue_table_name} LIMIT 1"
             )
             stored_metadata = json.loads(cursor.fetchone()[0])
-            
+
             assert stored_metadata["source"] == "test"
             assert stored_metadata["priority"] == "high"
             assert stored_metadata["batch_size"] == 1
@@ -506,28 +615,25 @@ class TestBatchChunking:
         """
         test_items = [{"key": f"value_{i}"} for i in range(7)]
         batch_size = 3
-        
-        queue.batch_add_items_to_queue(
-            items=test_items,
-            batch_size=batch_size
-        )
-        
+
+        queue.batch_add_items_to_queue(items=test_items, batch_size=batch_size)
+
         # Should create 3 chunks: 3 + 3 + 1 items
         with queue._get_connection() as conn:
             cursor = conn.execute(
                 f"SELECT payload, metadata FROM {queue.queue_table_name} ORDER BY created_at"
             )
             chunks = cursor.fetchall()
-            
+
             assert len(chunks) == 3
-            
+
             # First chunk should have 3 items
             first_chunk = json.loads(chunks[0][0])
             first_metadata = json.loads(chunks[0][1])
             assert len(first_chunk) == 3
             assert first_metadata["batch_size"] == batch_size
             assert first_metadata["actual_batch_size"] == 3
-            
+
             # Last chunk should have 1 item
             last_chunk = json.loads(chunks[-1][0])
             last_metadata = json.loads(chunks[-1][1])
@@ -552,16 +658,14 @@ class TestBatchMetadata:
         test_items = [{"key": f"value_{i}"} for i in range(5)]
         test_metadata = {"source": "batch_test", "priority": "low"}
         batch_size = 2
-        
+
         queue.batch_add_items_to_queue(
-            items=test_items,
-            metadata=test_metadata,
-            batch_size=batch_size
+            items=test_items, metadata=test_metadata, batch_size=batch_size
         )
-        
+
         loaded_items = queue.load_items_from_queue()
         assert len(loaded_items) == 3  # Should be 3 chunks (2+2+1)
-        
+
         for item in loaded_items:
             metadata = json.loads(item.metadata)
             # Original metadata preserved
@@ -578,7 +682,7 @@ class TestDefaultBatchSize:
 
         Verifies:
         - Default batch chunk size is used when not specified
-        - Default batch write size is used when not specified 
+        - Default batch write size is used when not specified
         - Large batches are properly chunked into minibatches
         - Minibatches are properly grouped into write batches
         - Metadata reflects batch sizing correctly
@@ -589,28 +693,28 @@ class TestDefaultBatchSize:
         # Create enough items to test both chunk size and write size defaults
         num_items = DEFAULT_BATCH_CHUNK_SIZE * (DEFAULT_BATCH_WRITE_SIZE + 1) + 1
         test_items = [{"key": f"value_{i}"} for i in range(num_items)]
-        
+
         queue.batch_add_items_to_queue(items=test_items)
-        
+
         loaded_items = queue.load_items_from_queue()
-        
+
         # Should create DEFAULT_BATCH_WRITE_SIZE + 2 chunks:
         # - DEFAULT_BATCH_WRITE_SIZE full chunks of DEFAULT_BATCH_CHUNK_SIZE items
         # - 1 full chunk of DEFAULT_BATCH_CHUNK_SIZE items
         # - 1 partial chunk with remaining item
         expected_chunks = DEFAULT_BATCH_WRITE_SIZE + 2
         assert len(loaded_items) == expected_chunks
-        
+
         # Check first chunk uses defaults
         first_metadata = json.loads(loaded_items[0].metadata)
         assert first_metadata["batch_size"] == DEFAULT_BATCH_CHUNK_SIZE
         assert first_metadata["actual_batch_size"] == DEFAULT_BATCH_CHUNK_SIZE
-        
+
         # Check middle chunk uses defaults
         middle_metadata = json.loads(loaded_items[DEFAULT_BATCH_WRITE_SIZE].metadata)
         assert middle_metadata["batch_size"] == DEFAULT_BATCH_CHUNK_SIZE
         assert middle_metadata["actual_batch_size"] == DEFAULT_BATCH_CHUNK_SIZE
-        
+
         # Check last chunk has remainder
         last_metadata = json.loads(loaded_items[-1].metadata)
         assert last_metadata["batch_size"] == DEFAULT_BATCH_CHUNK_SIZE
@@ -620,7 +724,7 @@ class TestDefaultBatchSize:
 class TestLoadItems:
     def test_load_items_with_limit(self, queue: Queue) -> None:
         """Test loading items with limit filter.
-        
+
         Verifies:
         - Correct number of items returned when limit specified
         - Items returned in correct order
@@ -630,11 +734,9 @@ class TestLoadItems:
         test_items = [{"key": f"value_{i}"} for i in range(5)]
         test_metadata = {"source": "test"}
         queue.batch_add_items_to_queue(
-            items=test_items,
-            metadata=test_metadata,
-            batch_size=1
+            items=test_items, metadata=test_metadata, batch_size=1
         )
-        
+
         # Test with limit
         items = queue.load_items_from_queue(limit=3)
         assert len(items) == 3
@@ -646,7 +748,7 @@ class TestLoadItems:
 
     def test_load_items_with_status(self, queue: Queue) -> None:
         """Test loading items with status filter.
-        
+
         Verifies:
         - Only items with matching status are returned
         - Metadata is preserved
@@ -655,23 +757,21 @@ class TestLoadItems:
         test_items = [{"key": f"value_{i}"} for i in range(5)]
         test_metadata = {"source": "test"}
         queue.batch_add_items_to_queue(
-            items=test_items,
-            metadata=test_metadata,
-            batch_size=1
+            items=test_items, metadata=test_metadata, batch_size=1
         )
-        
+
         # Mark some items as completed
         with queue._get_connection() as conn:
             conn.execute(
                 f"UPDATE {queue.queue_table_name} SET status = 'completed' WHERE id IN (1, 2)"
             )
-        
+
         # Test filtering by status
         completed_items = queue.load_items_from_queue(status="completed")
         assert len(completed_items) == 2
         for item in completed_items:
             assert json.loads(item.metadata)["source"] == "test"
-        
+
         pending_items = queue.load_items_from_queue(status="pending")
         assert len(pending_items) == 3
         for item in pending_items:
@@ -679,7 +779,7 @@ class TestLoadItems:
 
     def test_load_items_with_min_id(self, queue: Queue) -> None:
         """Test loading items with min_id filter.
-        
+
         Verifies:
         - Only items with id > min_id are returned
         - Metadata is preserved
@@ -687,11 +787,9 @@ class TestLoadItems:
         test_items = [{"key": f"value_{i}"} for i in range(5)]
         test_metadata = {"source": "test"}
         queue.batch_add_items_to_queue(
-            items=test_items,
-            metadata=test_metadata,
-            batch_size=1
+            items=test_items, metadata=test_metadata, batch_size=1
         )
-        
+
         items = queue.load_items_from_queue(min_id=2)
         assert len(items) == 3  # Should return items with id 3,4,5
         assert all(item.id > 2 for item in items)
@@ -700,7 +798,7 @@ class TestLoadItems:
 
     def test_load_items_with_min_timestamp(self, queue: Queue) -> None:
         """Test loading items with min_timestamp filter.
-        
+
         Verifies:
         - Only items with timestamp > min_timestamp are returned
         - Metadata is preserved
@@ -711,26 +809,22 @@ class TestLoadItems:
 
         # add first 3 items
         queue.batch_add_items_to_queue(
-            items=test_items[:3],
-            metadata=test_metadata,
-            batch_size=1
+            items=test_items[:3], metadata=test_metadata, batch_size=1
         )
 
         # wait 5 seconds, add next 2 items
         time.sleep(5)
         queue.batch_add_items_to_queue(
-            items=test_items[3:],
-            metadata=test_metadata,
-            batch_size=1
+            items=test_items[3:], metadata=test_metadata, batch_size=1
         )
-        
+
         # Get middle timestamp
         with queue._get_connection() as conn:
             cursor = conn.execute(
                 f"SELECT created_at FROM {queue.queue_table_name} ORDER BY created_at LIMIT 1 OFFSET 2"
             )
             mid_timestamp = cursor.fetchone()[0]
-        
+
         items = queue.load_items_from_queue(min_timestamp=mid_timestamp)
         assert len(items) == 2  # Should return 2 newest items
         for item in items:
@@ -740,24 +834,22 @@ class TestLoadItems:
 class TestLoadItemsCombinedFilters:
     def test_load_items_combined_filters_1(self, queue: Queue) -> None:
         """Test loading items with multiple filters combined.
-        
+
         Case 1: status + limit
         Verifies metadata is preserved
         """
         test_items = [{"key": f"value_{i}"} for i in range(5)]
         test_metadata = {"source": "test"}
         queue.batch_add_items_to_queue(
-            items=test_items,
-            metadata=test_metadata,
-            batch_size=1
+            items=test_items, metadata=test_metadata, batch_size=1
         )
-        
+
         # Mark some items as completed
         with queue._get_connection() as conn:
             conn.execute(
                 f"UPDATE {queue.queue_table_name} SET status = 'completed' WHERE id IN (1, 2, 3)"
             )
-        
+
         items = queue.load_items_from_queue(status="completed", limit=2)
         assert len(items) == 2
         assert all(item.status == "completed" for item in items)
@@ -766,7 +858,7 @@ class TestLoadItemsCombinedFilters:
 
     def test_load_items_combined_filters_2(self, queue: Queue) -> None:
         """Test loading items with multiple filters combined.
-        
+
         Case 2: min_id + min_timestamp + limit
         Verifies metadata is preserved
         """
@@ -775,17 +867,13 @@ class TestLoadItemsCombinedFilters:
 
         # add first 3 items
         queue.batch_add_items_to_queue(
-            items=test_items[:3],
-            metadata=test_metadata,
-            batch_size=1
+            items=test_items[:3], metadata=test_metadata, batch_size=1
         )
-        
+
         # wait 5 seconds, add next 2 items
         time.sleep(5)
         queue.batch_add_items_to_queue(
-            items=test_items[3:],
-            metadata=test_metadata,
-            batch_size=1
+            items=test_items[3:], metadata=test_metadata, batch_size=1
         )
 
         # Get middle timestamp
@@ -794,11 +882,9 @@ class TestLoadItemsCombinedFilters:
                 f"SELECT created_at FROM {queue.queue_table_name} ORDER BY created_at LIMIT 1 OFFSET 2"
             )
             mid_timestamp = cursor.fetchone()[0]
-        
+
         items = queue.load_items_from_queue(
-            min_id=2,
-            min_timestamp=mid_timestamp,
-            limit=2
+            min_id=2, min_timestamp=mid_timestamp, limit=2
         )
         assert len(items) == 2
         assert all(item.id > 2 for item in items)
@@ -807,7 +893,7 @@ class TestLoadItemsCombinedFilters:
 
     def test_load_items_combined_filters_3(self, queue: Queue) -> None:
         """Test loading items with multiple filters combined.
-        
+
         Case 3: all filters together
         Verifies metadata is preserved
 
@@ -832,17 +918,13 @@ class TestLoadItemsCombinedFilters:
 
         # add first 3 items
         queue.batch_add_items_to_queue(
-            items=test_items[:3],
-            metadata=test_metadata,
-            batch_size=1
+            items=test_items[:3], metadata=test_metadata, batch_size=1
         )
 
         # wait 5 seconds, add next 7 items
         time.sleep(5)
         queue.batch_add_items_to_queue(
-            items=test_items[3:],
-            metadata=test_metadata,
-            batch_size=1
+            items=test_items[3:], metadata=test_metadata, batch_size=1
         )
 
         # Mark some items as completed
@@ -860,16 +942,14 @@ class TestLoadItemsCombinedFilters:
         # query for records that are after the middle timestamp (here, the
         # records from the second batch).
         one_second_before_mid_timestamp = (
-            datetime.strptime(
-                mid_timestamp, "%Y-%m-%d-%H:%M:%S"
-            ) - timedelta(seconds=1)
+            datetime.strptime(mid_timestamp, "%Y-%m-%d-%H:%M:%S") - timedelta(seconds=1)
         ).strftime("%Y-%m-%d-%H:%M:%S")
 
         items = queue.load_items_from_queue(
             status="pending",
             min_id=5,
             min_timestamp=one_second_before_mid_timestamp,
-            limit=2
+            limit=2,
         )
         assert len(items) == 2
         assert all(item.status == "pending" for item in items)
@@ -881,7 +961,7 @@ class TestLoadItemsCombinedFilters:
 class TestLoadDictItems:
     def test_load_dict_items_from_queue(self, queue: Queue) -> None:
         """Test loading items as dictionaries.
-        
+
         Verifies:
         - Items are returned as dictionaries
         - All filters work as expected
@@ -889,24 +969,22 @@ class TestLoadDictItems:
         - Payload is properly deserialized
         """
         # Add test items with different statuses and timestamps
-        test_items = [{"uri": f"post_{i}", "text": f"Sample text {i}"} for i in range(5)]
+        test_items = [
+            {"uri": f"post_{i}", "text": f"Sample text {i}"} for i in range(5)
+        ]
         test_metadata = {"source": "test", "priority": "high"}
-        
+
         # Add first batch
         queue.batch_add_items_to_queue(
-            items=test_items[:3],
-            metadata=test_metadata,
-            batch_size=1
+            items=test_items[:3], metadata=test_metadata, batch_size=1
         )
-        
+
         # Wait and add second batch
         time.sleep(1)
         queue.batch_add_items_to_queue(
-            items=test_items[3:],
-            metadata=test_metadata,
-            batch_size=1
+            items=test_items[3:], metadata=test_metadata, batch_size=1
         )
-        
+
         # Mark some items as completed
         with queue._get_connection() as conn:
             conn.execute(
@@ -916,28 +994,25 @@ class TestLoadDictItems:
                 f"SELECT created_at FROM {queue.queue_table_name} ORDER BY created_at LIMIT 1 OFFSET 2"
             )
             mid_timestamp = cursor.fetchone()[0]
-        
+
         # Test loading with combined filters
         dict_items = queue.load_dict_items_from_queue(
-            status="pending",
-            min_id=2,
-            min_timestamp=mid_timestamp,
-            limit=2
+            status="pending", min_id=2, min_timestamp=mid_timestamp, limit=2
         )
-        
+
         assert len(dict_items) == 2
         for item in dict_items:
             # Verify dictionary structure
             assert isinstance(item, dict)
             assert "batch_id" in item
             assert "batch_metadata" in item
-            
+
             # Verify values
             assert isinstance(item["batch_metadata"], str)
             metadata = json.loads(item["batch_metadata"])
             assert metadata["source"] == "test"
             assert metadata["priority"] == "high"
-            
+
             # Verify content
             assert "uri" in item
             assert "text" in item
@@ -950,7 +1025,7 @@ class TestRunQuery:
 
     def test_basic_select(self, queue: Queue) -> None:
         """Test basic SELECT query execution.
-        
+
         Verifies:
         - Simple SELECT query works
         - Results are returned as list of dicts
@@ -959,10 +1034,10 @@ class TestRunQuery:
         # Add test data
         test_items = [{"key": "value1"}, {"key": "value2"}]
         queue.batch_add_items_to_queue(test_items, batch_size=1)
-        
+
         # Run query
         results = queue.run_query("SELECT id, payload FROM queue")
-        
+
         assert len(results) == 2
         assert all(isinstance(row, dict) for row in results)
         assert all({"id", "payload"}.issubset(row.keys()) for row in results)
@@ -971,7 +1046,7 @@ class TestRunQuery:
 
     def test_parameterized_query(self, queue: Queue) -> None:
         """Test query with parameter binding.
-        
+
         Verifies:
         - Parameter binding works correctly
         - Results are filtered correctly
@@ -980,22 +1055,21 @@ class TestRunQuery:
         test_items = [
             {"key": "value1", "type": "A"},
             {"key": "value2", "type": "B"},
-            {"key": "value3", "type": "A"}
+            {"key": "value3", "type": "A"},
         ]
         queue.batch_add_items_to_queue(test_items, batch_size=1)
-        
+
         # Run parameterized query
         results = queue.run_query(
-            "SELECT * FROM queue WHERE status = ?",
-            params=("pending",)
+            "SELECT * FROM queue WHERE status = ?", params=("pending",)
         )
-        
+
         assert len(results) == 3
         assert all(isinstance(row, dict) for row in results)
 
     def test_empty_result(self, queue: Queue) -> None:
         """Test query returning no results.
-        
+
         Verifies:
         - Empty result set is handled correctly
         - Returns empty list
@@ -1006,7 +1080,7 @@ class TestRunQuery:
 
     def test_unsafe_queries(self, queue: Queue) -> None:
         """Test rejection of unsafe queries.
-        
+
         Verifies:
         - Non-SELECT queries are rejected
         - Queries with unsafe keywords are rejected
@@ -1020,14 +1094,14 @@ class TestRunQuery:
             "CREATE TABLE test (id INTEGER)",
             "SELECT * FROM queue; DROP TABLE queue",
         ]
-        
+
         for query in unsafe_queries:
             with pytest.raises(ValueError, match=".*unsafe.*|.*SELECT.*"):
                 queue.run_query(query)
 
     def test_complex_select(self, queue: Queue) -> None:
         """Test complex SELECT query with joins and aggregations.
-        
+
         Verifies:
         - Complex queries work correctly
         - Aggregation results are properly returned
@@ -1036,10 +1110,10 @@ class TestRunQuery:
         test_items = [
             {"key": "value1", "count": 5},
             {"key": "value2", "count": 3},
-            {"key": "value1", "count": 2}
+            {"key": "value1", "count": 2},
         ]
         queue.batch_add_items_to_queue(test_items, batch_size=1)
-        
+
         # Run complex query
         results = queue.run_query("""
             SELECT 
@@ -1048,7 +1122,7 @@ class TestRunQuery:
                 MAX(created_at) as last_created
             FROM queue
         """)
-        
+
         assert len(results) == 1
         assert results[0]["total_count"] == 3
         assert isinstance(results[0]["first_created"], str)
@@ -1056,7 +1130,7 @@ class TestRunQuery:
 
     def test_null_values(self, queue: Queue) -> None:
         """Test handling of NULL values in query results.
-        
+
         Verifies:
         - NULL values are properly returned as None
         - Mixed NULL and non-NULL values work
@@ -1065,18 +1139,18 @@ class TestRunQuery:
         with queue._get_connection() as conn:
             conn.execute(
                 "INSERT INTO queue (payload, metadata) VALUES (?, ?)",
-                (json.dumps({"key": "value"}), None)
+                (json.dumps({"key": "value"}), None),
             )
-        
+
         results = queue.run_query("SELECT payload, metadata FROM queue")
-        
+
         assert len(results) == 1
         assert results[0]["metadata"] is None
         assert isinstance(results[0]["payload"], str)
 
     def test_error_handling(self, queue: Queue) -> None:
         """Test error handling for invalid queries.
-        
+
         Verifies:
         - Syntax errors are caught and raised
         - Invalid column references are caught and raised
@@ -1086,14 +1160,14 @@ class TestRunQuery:
             "SELECT * FROM nonexistent_table",
             "SELECT * FROM queue WHERE",  # Incomplete query
         ]
-        
+
         for query in invalid_queries:
             with pytest.raises(sqlite3.Error):
                 queue.run_query(query)
 
     def test_whitespace_handling(self, queue: Queue) -> None:
         """Test handling of queries with different whitespace.
-        
+
         Verifies:
         - Queries with different whitespace patterns work
         - Leading/trailing whitespace is handled
@@ -1103,7 +1177,7 @@ class TestRunQuery:
             "SELECT\n*\nFROM\nqueue",
             "SELECT * \n FROM queue \n WHERE 1=1",
         ]
-        
+
         for query in valid_queries:
             try:
                 queue.run_query(query)
@@ -1112,61 +1186,60 @@ class TestRunQuery:
 
     def test_sql_injection_prevention(self, queue: Queue) -> None:
         """Test prevention of SQL injection attacks.
-        
+
         Verifies:
         - Parameter binding prevents SQL injection
         - Malicious input in parameters is escaped
         - Attempts to inject additional statements are blocked
-        
+
         This is critical for security as it ensures the query method properly
         handles potentially malicious input without compromising the database.
         """
         # Add test data
         test_items = [{"key": "safe_value"}]
         queue.batch_add_items_to_queue(test_items, batch_size=1)
-        
+
         # Test injection attempts
         malicious_inputs = [
             "' OR '1'='1",
             "'; DROP TABLE queue; --",
             "' UNION SELECT * FROM queue; --",
         ]
-        
+
         for malicious_input in malicious_inputs:
             # This should safely escape the malicious input
             results = queue.run_query(
-                "SELECT * FROM queue WHERE payload = ?",
-                params=(malicious_input,)
+                "SELECT * FROM queue WHERE payload = ?", params=(malicious_input,)
             )
             assert len(results) == 0  # Should find no matches
-            
+
             # Verify table still exists and data is intact
             results = queue.run_query("SELECT COUNT(*) as count FROM queue")
             assert results[0]["count"] == 1
 
     def test_large_result_set(self, queue: Queue) -> None:
         """Test handling of large result sets.
-        
+
         Verifies:
         - Large result sets are processed efficiently
         - Memory usage remains reasonable
         - All rows are correctly converted to dictionaries
-        
+
         This test ensures the query method can handle substantial amounts of data
         without performance degradation or memory issues.
         """
         # Add 1000 test items
         test_items = [{"key": f"value_{i}"} for i in range(1000)]
         queue.batch_add_items_to_queue(test_items, batch_size=50)
-        
+
         # Query all items
         start_time = time.time()
         results = queue.run_query("SELECT COUNT(*) as total FROM queue")
         query_time = time.time() - start_time
-        
+
         assert results[0]["total"] == 20  # 1000 items in batches of 50
         assert query_time < 2.0  # Should complete in reasonable time
-        
+
         # Verify we can get all the batched data
         results = queue.run_query("SELECT payload FROM queue")
         total_items = sum(len(json.loads(row["payload"])) for row in results)
@@ -1174,46 +1247,46 @@ class TestRunQuery:
 
     def test_special_column_names(self, queue: Queue) -> None:
         """Test handling of special characters in column aliases.
-        
+
         Verifies:
         - Quoted column names are handled correctly
         - Special characters in aliases work
         - Column name case is preserved
-        
+
         This ensures the query method properly handles various SQL column naming
         conventions and special cases.
         """
         test_items = [{"key": "value"}]
         queue.batch_add_items_to_queue(test_items, batch_size=1)
-        
+
         queries = [
             'SELECT payload as "Column With Spaces" FROM queue',
             'SELECT payload as "Special!@#$%" FROM queue',
             'SELECT payload as "MixedCase" FROM queue',
         ]
-        
+
         for query in queries:
             results = queue.run_query(query)
             assert len(results) == 1
             row = results[0]
             # Verify the exact column name is preserved
-            alias = query.split(' as ')[1].split(' FROM')[0].strip('"')
+            alias = query.split(" as ")[1].split(" FROM")[0].strip('"')
             assert alias in row
 
     def test_transaction_isolation(self, queue: Queue) -> None:
         """Test query execution in isolated transactions.
-        
+
         Verifies:
         - Queries run in isolated transactions
         - Changes in one transaction don't affect others
         - Failed transactions don't impact the database
-        
+
         This ensures data consistency and isolation between different
         query operations.
         """
         test_items = [{"key": "value"}]
         queue.batch_add_items_to_queue(test_items, batch_size=1)
-        
+
         # Run query in transaction that will be rolled back
         with queue._get_connection() as conn:
             try:
@@ -1223,34 +1296,33 @@ class TestRunQuery:
                 raise Exception("Simulated failure")
             except:
                 conn.rollback()
-        
+
         # Verify original data is unchanged
         results = queue.run_query("SELECT status FROM queue")
         assert results[0]["status"] == "pending"
 
     def test_column_type_preservation(self, queue: Queue) -> None:
         """Test preservation of SQLite column types in results.
-        
+
         Verifies:
         - Integer columns remain integers
         - Text columns remain strings
         - NULL values are preserved as None
         - Timestamps are preserved as strings
-        
+
         This ensures data types are correctly maintained when converting
         results to dictionaries.
         """
         # Add test data with various types
         with queue._get_connection() as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT INTO queue (payload, metadata, status)
                 VALUES (?, ?, ?)
-            """, (
-                json.dumps({"int_value": 42}),
-                None,
-                "test_status"
-            ))
-        
+            """,
+                (json.dumps({"int_value": 42}), None, "test_status"),
+            )
+
         results = queue.run_query("""
             SELECT 
                 id as int_col,
@@ -1259,7 +1331,7 @@ class TestRunQuery:
                 created_at as timestamp_col
             FROM queue
         """)
-        
+
         assert len(results) == 1
         row = results[0]
         assert isinstance(row["int_col"], int)
@@ -1269,18 +1341,18 @@ class TestRunQuery:
 
     def test_multi_statement_rejection(self, queue: Queue) -> None:
         """Test rejection of multiple SQL statements.
-        
+
         Verifies:
         - Multiple statements in single query are rejected
         - Semicolon usage in legitimate contexts is allowed
         - Complex subqueries are still allowed
-        
+
         This is a critical security feature that prevents execution of
         unintended statements.
         """
         test_items = [{"key": "value"}]
         queue.batch_add_items_to_queue(test_items, batch_size=1)
-        
+
         # These should be rejected
         multi_statements = [
             "SELECT * FROM queue; SELECT * FROM queue",
@@ -1289,7 +1361,7 @@ class TestRunQuery:
         for query in multi_statements:
             with pytest.raises(ValueError):
                 queue.run_query(query)
-        
+
         # These should be allowed (semicolons in legitimate contexts)
         valid_queries = [
             "SELECT * FROM queue WHERE payload LIKE '%;%'",
@@ -1297,7 +1369,7 @@ class TestRunQuery:
             SELECT * FROM queue WHERE id IN (
                 SELECT id FROM queue WHERE status = 'pending'
             )
-            """
+            """,
         ]
         for query in valid_queries:
             try:
@@ -1307,12 +1379,12 @@ class TestRunQuery:
 
     def test_unicode_handling(self, queue: Queue) -> None:
         """Test handling of Unicode characters in queries and results.
-        
+
         Verifies:
         - Unicode characters in queries work correctly
         - Unicode data is preserved in results
         - Different Unicode character types are handled
-        
+
         This ensures proper handling of international characters and
         special symbols.
         """
@@ -1323,14 +1395,14 @@ class TestRunQuery:
             {"key": "value", "unicode": "über"},
         ]
         queue.batch_add_items_to_queue(test_items, batch_size=1)
-        
+
         # Query with Unicode in conditions
         results = queue.run_query(
             "SELECT payload FROM queue WHERE json_extract(payload, '$[0].unicode') LIKE ?",
-            params=("%世界%",)
+            params=("%世界%",),
         )
         assert len(results) == 1
-        
+
         # Verify Unicode is preserved
         results = queue.run_query("SELECT payload FROM queue")
         payloads = [json.loads(r["payload"])[0] for r in results]
@@ -1344,7 +1416,7 @@ class TestQueue_load_item_ids_from_queue:
 
     def test_loads_item_ids_successfully(self, queue: Queue) -> None:
         """Test loading queue item IDs successfully.
-        
+
         Verifies:
         - Item IDs are returned correctly
         - All IDs are integers
@@ -1353,10 +1425,10 @@ class TestQueue_load_item_ids_from_queue:
         # Add test items
         test_items = [{"key": f"value_{i}"} for i in range(5)]
         queue.batch_add_items_to_queue(test_items, batch_size=1)
-        
+
         # Load IDs
         ids = queue.load_item_ids_from_queue()
-        
+
         # Assert
         assert len(ids) == 5
         assert all(isinstance(id_val, int) for id_val in ids)
@@ -1365,20 +1437,20 @@ class TestQueue_load_item_ids_from_queue:
 
     def test_loads_empty_ids_when_queue_is_empty(self, queue: Queue) -> None:
         """Test loading IDs from empty queue.
-        
+
         Verifies:
         - Empty list is returned when queue is empty
         - No errors are raised
         """
         # Load IDs from empty queue
         ids = queue.load_item_ids_from_queue()
-        
+
         # Assert
         assert ids == []
 
     def test_loads_ids_with_limit(self, queue: Queue) -> None:
         """Test loading IDs with limit.
-        
+
         Verifies:
         - Correct number of IDs returned when limit specified
         - Limit is respected
@@ -1386,17 +1458,17 @@ class TestQueue_load_item_ids_from_queue:
         # Add test items
         test_items = [{"key": f"value_{i}"} for i in range(10)]
         queue.batch_add_items_to_queue(test_items, batch_size=1)
-        
+
         # Load IDs with limit
         ids = queue.load_item_ids_from_queue(limit=5)
-        
+
         # Assert
         assert len(ids) == 5
         assert all(isinstance(id_val, int) for id_val in ids)
 
     def test_loads_all_ids_when_limit_is_none(self, queue: Queue) -> None:
         """Test loading all IDs when limit is None.
-        
+
         Verifies:
         - All IDs are returned when limit is None
         - Behavior matches calling without limit
@@ -1404,18 +1476,18 @@ class TestQueue_load_item_ids_from_queue:
         # Add test items
         test_items = [{"key": f"value_{i}"} for i in range(7)]
         queue.batch_add_items_to_queue(test_items, batch_size=1)
-        
+
         # Load IDs with None limit and without limit - both should return same
         ids_with_none = queue.load_item_ids_from_queue(limit=None)
         ids_without_limit = queue.load_item_ids_from_queue()
-        
+
         # Assert
         assert len(ids_with_none) == 7
         assert ids_with_none == ids_without_limit
 
     def test_handles_multiple_ids_correctly(self, queue: Queue) -> None:
         """Test handling of multiple IDs.
-        
+
         Verifies:
         - Multiple IDs are returned correctly
         - IDs are unique
@@ -1424,14 +1496,14 @@ class TestQueue_load_item_ids_from_queue:
         # Add test items
         test_items = [{"key": f"value_{i}"} for i in range(15)]
         queue.batch_add_items_to_queue(test_items, batch_size=1)
-        
+
         # Load all IDs
         ids = queue.load_item_ids_from_queue()
-        
+
         # Assert
         assert len(ids) == 15
         assert len(ids) == len(set(ids))  # All IDs should be unique
-        
+
         # Verify IDs correspond to actual items
         items = queue.load_items_from_queue()
         item_ids = [item.id for item in items]
