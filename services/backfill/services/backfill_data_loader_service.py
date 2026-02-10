@@ -50,6 +50,12 @@ class BackfillDataLoaderService:
             start_date=start_date,
             end_date=end_date,
         )
+        total_original = len(posts)
+        total_filtered = len(filtered_posts)
+        excluded = total_original - total_filtered
+        logger.info(
+            f"Enqueued {total_filtered} posts for {integration_name} in range {start_date} to {end_date} (filtered out {excluded} previously labeled posts)."
+        )
         return filtered_posts
 
     def _load_posts(
@@ -141,8 +147,8 @@ class BackfillDataLoaderService:
         excluded = total_original - total_filtered
         total_classified = len(classified_post_uris)
         logger.info(
-            f"Filtered out previously classified posts for {integration_name}: "
+            f"After filtering out previously labeled posts for {integration_name}: "
             f"{total_original} -> {total_filtered} posts to enqueue "
-            f"({excluded} already labeled, {total_classified} known labeled URIs in range)."
+            f"({excluded} already labeled; {total_classified} known labeled URIs in range)."
         )
         return filtered
