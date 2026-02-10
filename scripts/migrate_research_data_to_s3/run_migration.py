@@ -110,7 +110,11 @@ def run_migration_for_single_prefix(
     files_to_migrate: list[dict[str, str]] = (
         migration_tracker_db.get_files_to_migrate_for_prefix(prefix)
     )
+    n = len(files_to_migrate)
+    logger.info(f"Migrating {n} file(s) for {prefix}")
 
+    succeeded = 0
+    failed_count = 0
     for file_to_migrate in tqdm(files_to_migrate, desc=f"Migrating {prefix}"):
         local_filepath = file_to_migrate["local_path"]
         s3_key = file_to_migrate["s3_key"]
@@ -120,8 +124,15 @@ def run_migration_for_single_prefix(
         success, error_message = migrate_file_to_s3(local_filepath, s3_key, s3_client)
         if not success:
             migration_tracker_db.mark_failed(local_filepath, error_message)
+            failed_count += 1
         else:
             migration_tracker_db.mark_completed(local_filepath)
+            succeeded += 1
+
+    if n > 0:
+        logger.info(
+            f"Migrated {n} files for {prefix}: {succeeded} succeeded, {failed_count} failed."
+        )
 
 
 def run_migration_for_all_prefixes(

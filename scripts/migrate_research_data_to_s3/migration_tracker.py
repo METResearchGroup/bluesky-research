@@ -90,7 +90,8 @@ class MigrationTracker:
         Args:
             files: List of dicts with 'local_path' and 's3_key'
         """
-        logger.info(f"Registering {len(files)} files for migration")
+        inserted = 0
+        already_in_tracker = 0
         with sqlite3.connect(self.db_path) as conn:
             for file_info in files:
                 local_path = file_info["local_path"]
@@ -117,11 +118,15 @@ class MigrationTracker:
                     """,
                         (local_path, s3_key, file_size, status),
                     )
+                    inserted += 1
                 except sqlite3.IntegrityError:
+                    already_in_tracker += 1
                     logger.debug(f"File already registered: {local_path}")
 
             conn.commit()
-            logger.info(f"Registered {len(files)} files for migration")
+        logger.info(
+            f"Registered {inserted} new files for migration ({already_in_tracker} already in tracker)."
+        )
 
     def mark_started(self, local_path: str) -> None:
         """Mark a file as in progress and record the start time.
