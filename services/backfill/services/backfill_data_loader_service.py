@@ -1,9 +1,11 @@
 from collections.abc import Callable
 
+from lib.log.logger import get_logger
 from services.backfill.models import PostScope, PostToEnqueueModel
 from services.backfill.repositories.adapters import LocalStorageAdapter
 from services.backfill.repositories.repository import BackfillDataRepository
 
+logger = get_logger(__name__)
 DEFAULT_POST_ID_FIELD = "uri"
 
 
@@ -47,6 +49,12 @@ class BackfillDataLoaderService:
             integration_name=integration_name,
             start_date=start_date,
             end_date=end_date,
+        )
+        total_original = len(posts)
+        total_filtered = len(filtered_posts)
+        excluded = total_original - total_filtered
+        logger.info(
+            f"Prepared {total_filtered} posts for enqueueing for {integration_name} in range {start_date} to {end_date} (filtered out {excluded} previously labeled posts)."
         )
         return filtered_posts
 
@@ -133,4 +141,5 @@ class BackfillDataLoaderService:
             start_date=start_date,
             end_date=end_date,
         )
-        return [post for post in posts if post.uri not in classified_post_uris]
+        filtered = [post for post in posts if post.uri not in classified_post_uris]
+        return filtered

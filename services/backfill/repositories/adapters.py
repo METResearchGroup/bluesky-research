@@ -279,9 +279,6 @@ class S3Adapter(BackfillDataAdapter):
                 query_metadata=query_metadata,
             )
             total_records: int = len(df)
-            logger.info(
-                f"Loaded {total_records} post URIs from S3 for service {service}"
-            )
             if df.empty:
                 return set()
             if id_field not in df.columns:
@@ -291,7 +288,12 @@ class S3Adapter(BackfillDataAdapter):
                 )
 
             # Ensure we return a Python set of strings (dedup by construction).
-            return set(df[id_field].astype("string"))
+            unique_uris: set[str] = set(df[id_field].astype("string"))
+            logger.info(
+                f"Loaded {total_records} post URI rows from S3 for service {service} "
+                f"({len(unique_uris)} unique URIs)."
+            )
+            return unique_uris
         except BackfillDataAdapterError:
             raise
         except Exception as e:

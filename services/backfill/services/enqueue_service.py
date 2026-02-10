@@ -84,7 +84,15 @@ class EnqueueService:
                     end_date=payload.end_date,
                 )
             )
-            logger.info(f"Loaded {len(base_posts)} base posts (scope={post_scope}).")
+            if post_scope == PostScope.FEED_POSTS:
+                logger.info(
+                    f"Loaded {len(base_posts)} base posts (scope={post_scope}) to consider for enqueue "
+                    f"(already deduplicated by URI across feed dates)."
+                )
+            else:
+                logger.info(
+                    f"Loaded {len(base_posts)} base posts (scope={post_scope})."
+                )
 
             if payload.sample_records:
                 sample_proportion: float = float(
@@ -116,6 +124,10 @@ class EnqueueService:
                         f"No posts to enqueue for integration: {integration_name}"
                     )
                     continue
+                logger.info(
+                    f"Enqueuing {len(posts_to_enqueue)} posts for integration {integration_name} "
+                    f"(after dedup and filtering previously labeled)."
+                )
                 self.queue_manager_service.insert_posts_to_queue(
                     integration_name=integration_name,
                     posts=posts_to_enqueue,

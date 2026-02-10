@@ -3,12 +3,15 @@
 from abc import ABC, abstractmethod
 
 from lib.constants import FEED_LOOKBACK_DAYS_DURING_STUDY, study_start_date
+from lib.log.logger import get_logger
 from lib.datetime_utils import (
     calculate_start_end_date_for_lookback,
     get_partition_dates,
 )
 from services.backfill.exceptions import BackfillDataAdapterError
 from services.backfill.models import PostToEnqueueModel, PostUsedInFeedModel
+
+logger = get_logger(__name__)
 
 
 class BackfillDataAdapter(ABC):
@@ -51,8 +54,16 @@ class BackfillDataAdapter(ABC):
             )
             for partition_date in partition_dates:
                 results.extend(self._load_feed_posts_for_date(partition_date))
+            logger.info(
+                f"Loaded feed posts across {len(partition_dates)} dates: "
+                f"{len(results)} total (with duplicates across dates)."
+            )
             deduplicated_results: list[PostToEnqueueModel] = (
                 self._deduplicate_feed_posts(posts=results)
+            )
+            logger.info(
+                f"After deduplication by URI: {len(deduplicated_results)} unique posts "
+                f"(candidate pool used in feeds for range)."
             )
             return deduplicated_results
         except BackfillDataAdapterError:
@@ -104,6 +115,11 @@ class BackfillDataAdapter(ABC):
             )
         )
 
+        logger.info(
+            f"[Feed backfill date={partition_date}] Candidate pool (preprocessed_posts in lookback): "
+            f"{len(candidate_pool_posts)}; posts used in feeds (URIs): {len(posts_used_in_feeds)}; "
+            f"candidate posts used in feeds (intersection): {len(candidate_pool_posts_used_in_feeds)}."
+        )
         return candidate_pool_posts_used_in_feeds
 
     def _load_candidate_pool_posts_for_date(
