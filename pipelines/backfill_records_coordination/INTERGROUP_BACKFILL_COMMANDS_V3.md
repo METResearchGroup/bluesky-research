@@ -72,6 +72,24 @@ GROUP BY 1
 ORDER BY 1 ASC;
 ```
 
+Numbers check out compared to the total URIs:
+
+```sql
+SELECT
+  earliest_partition_date AS partition_date,
+  COUNT(uri) AS uri_count
+FROM (
+  SELECT
+    uri,
+    partition_date,
+    MIN(partition_date) OVER (PARTITION BY uri) AS earliest_partition_date
+  FROM archive_fetch_posts_used_in_feeds
+) t
+WHERE partition_date = earliest_partition_date
+GROUP BY earliest_partition_date
+ORDER BY earliest_partition_date ASC;
+```
+
 ```bash
 
 ```
@@ -678,7 +696,7 @@ rm output_ml_inference_intergroup.db
 ## Week 4: 2024-10-19 to 2024-10-25
 
 - [ ] **Enqueueing**
-  - `uv run python -m pipelines.backfill_records_coordination.app --add-to-queue --record-type posts_used_in_feeds --integrations g --start-date 2024-10-19 --end-date 2024-10-25 --source-data-location s3 --sample-records --sample-proportion 0.10`
+  - `uv run python -m pipelines.backfill_records_coordination.app --add-to-queue --record-type posts_used_in_feeds --integrations g --start-date 2024-10-19 --end-date 2024-10-25 --source-data-location s3`
 
 ```bash
 
@@ -725,6 +743,24 @@ SELECT partition_date, COUNT(*) as total_labels
 FROM archive_ml_inference_intergroup
 GROUP BY 1
 ORDER BY 1 ASC;
+```
+
+Numbers check out compared to the total URIs:
+
+```sql
+SELECT
+  earliest_partition_date AS partition_date,
+  COUNT(uri) AS uri_count
+FROM (
+  SELECT
+    uri,
+    partition_date,
+    MIN(partition_date) OVER (PARTITION BY uri) AS earliest_partition_date
+  FROM archive_fetch_posts_used_in_feeds
+) t
+WHERE partition_date = earliest_partition_date
+GROUP BY earliest_partition_date
+ORDER BY earliest_partition_date ASC;
 ```
 
 ```bash
@@ -803,6 +839,24 @@ GROUP BY 1
 ORDER BY 1 ASC;
 ```
 
+Numbers check out compared to the total URIs:
+
+```sql
+SELECT
+  earliest_partition_date AS partition_date,
+  COUNT(uri) AS uri_count
+FROM (
+  SELECT
+    uri,
+    partition_date,
+    MIN(partition_date) OVER (PARTITION BY uri) AS earliest_partition_date
+  FROM archive_fetch_posts_used_in_feeds
+) t
+WHERE partition_date = earliest_partition_date
+GROUP BY earliest_partition_date
+ORDER BY earliest_partition_date ASC;
+```
+
 ```bash
 
 ```
@@ -877,6 +931,24 @@ SELECT partition_date, COUNT(*) as total_labels
 FROM archive_ml_inference_intergroup
 GROUP BY 1
 ORDER BY 1 ASC;
+```
+
+Numbers check out compared to the total URIs:
+
+```sql
+SELECT
+  earliest_partition_date AS partition_date,
+  COUNT(uri) AS uri_count
+FROM (
+  SELECT
+    uri,
+    partition_date,
+    MIN(partition_date) OVER (PARTITION BY uri) AS earliest_partition_date
+  FROM archive_fetch_posts_used_in_feeds
+) t
+WHERE partition_date = earliest_partition_date
+GROUP BY earliest_partition_date
+ORDER BY earliest_partition_date ASC;
 ```
 
 ```bash
@@ -955,6 +1027,24 @@ GROUP BY 1
 ORDER BY 1 ASC;
 ```
 
+Numbers check out compared to the total URIs:
+
+```sql
+SELECT
+  earliest_partition_date AS partition_date,
+  COUNT(uri) AS uri_count
+FROM (
+  SELECT
+    uri,
+    partition_date,
+    MIN(partition_date) OVER (PARTITION BY uri) AS earliest_partition_date
+  FROM archive_fetch_posts_used_in_feeds
+) t
+WHERE partition_date = earliest_partition_date
+GROUP BY earliest_partition_date
+ORDER BY earliest_partition_date ASC;
+```
+
 ```bash
 
 ```
@@ -1029,6 +1119,24 @@ SELECT partition_date, COUNT(*) as total_labels
 FROM archive_ml_inference_intergroup
 GROUP BY 1
 ORDER BY 1 ASC;
+```
+
+Numbers check out compared to the total URIs:
+
+```sql
+SELECT
+  earliest_partition_date AS partition_date,
+  COUNT(uri) AS uri_count
+FROM (
+  SELECT
+    uri,
+    partition_date,
+    MIN(partition_date) OVER (PARTITION BY uri) AS earliest_partition_date
+  FROM archive_fetch_posts_used_in_feeds
+) t
+WHERE partition_date = earliest_partition_date
+GROUP BY earliest_partition_date
+ORDER BY earliest_partition_date ASC;
 ```
 
 ```bash
@@ -1107,6 +1215,24 @@ GROUP BY 1
 ORDER BY 1 ASC;
 ```
 
+Numbers check out compared to the total URIs:
+
+```sql
+SELECT
+  earliest_partition_date AS partition_date,
+  COUNT(uri) AS uri_count
+FROM (
+  SELECT
+    uri,
+    partition_date,
+    MIN(partition_date) OVER (PARTITION BY uri) AS earliest_partition_date
+  FROM archive_fetch_posts_used_in_feeds
+) t
+WHERE partition_date = earliest_partition_date
+GROUP BY earliest_partition_date
+ORDER BY earliest_partition_date ASC;
+```
+
 ```bash
 
 ```
@@ -1181,6 +1307,24 @@ SELECT partition_date, COUNT(*) as total_labels
 FROM archive_ml_inference_intergroup
 GROUP BY 1
 ORDER BY 1 ASC;
+```
+
+Numbers check out compared to the total URIs:
+
+```sql
+SELECT
+  earliest_partition_date AS partition_date,
+  COUNT(uri) AS uri_count
+FROM (
+  SELECT
+    uri,
+    partition_date,
+    MIN(partition_date) OVER (PARTITION BY uri) AS earliest_partition_date
+  FROM archive_fetch_posts_used_in_feeds
+) t
+WHERE partition_date = earliest_partition_date
+GROUP BY earliest_partition_date
+ORDER BY earliest_partition_date ASC;
 ```
 
 ```bash
