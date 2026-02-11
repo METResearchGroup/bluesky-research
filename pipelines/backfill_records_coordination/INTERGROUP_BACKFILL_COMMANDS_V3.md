@@ -695,17 +695,47 @@ rm output_ml_inference_intergroup.db
 
 ## Week 4: 2024-10-19 to 2024-10-25
 
-- [ ] **Enqueueing**
+- [X] **Enqueueing**
   - `uv run python -m pipelines.backfill_records_coordination.app --add-to-queue --record-type posts_used_in_feeds --integrations g --start-date 2024-10-19 --end-date 2024-10-25 --source-data-location s3`
 
 ```bash
-
+2026-02-10 19:08:51,270 INFO [logger.py]: Enqueuing 436710 posts for integration ml_inference_intergroup (after dedup and filtering previously labeled).
+2026-02-10 19:08:51,271 INFO [logger.py]: Creating new SQLite DB for queue input_ml_inference_intergroup...
+2026-02-10 19:08:51,839 INFO [logger.py]: Writing 436710 items as 437 minibatches to DB.
+2026-02-10 19:08:51,839 INFO [logger.py]: Writing 437 minibatches to DB as 18 batches...
+2026-02-10 19:08:51,839 INFO [logger.py]: Processing batch 1/18...
+2026-02-10 19:08:52,154 INFO [logger.py]: Processing batch 11/18...
+2026-02-10 19:08:52,387 INFO [logger.py]: Inserted 436710 posts into queue for integration: ml_inference_intergroup
+2026-02-10 19:08:52,415 INFO [logger.py]: [Progress: 1/1] Completed enqueuing records for integration: ml_inference_intergroup
+2026-02-10 19:08:52,415 INFO [logger.py]: [Progress: 1/1] Enqueuing records completed successfully.
 ```
 
 - [ ] **Running integrations**
   - `uv run python -m pipelines.backfill_records_coordination.app --run-integrations --integrations g --max-records-per-run 50000`
 
+I'll have to run this in batches. I'll start with 50,000 first.
+
 ```bash
+(base) ➜  bluesky-research git:(intergroup-backfills-v3) ✗ uv run python -m pipelines.backfill_records_coordination.app --run-integrations --integrations g --max-records-per-run 50000
+2026-02-10 19:18:58,851 INFO [logger.py]: No connection provided, creating a new in-memory connection.
+2026-02-10 19:18:58,971 INFO [logger.py]: Not clearing any queues.
+2026-02-10 19:18:58,972 INFO [logger.py]: Running integrations: ml_inference_intergroup
+2026-02-10 19:18:58,972 INFO [logger.py]: Running integration 1 of 1: ml_inference_intergroup
+2026-02-10 19:19:06,275 INFO [logger.py]: Loading existing SQLite DB for queue input_ml_inference_intergroup...
+2026-02-10 19:19:06,314 INFO [logger.py]: Current queue size: 437 items
+2026-02-10 19:19:07,834 INFO [logger.py]: Loaded 436710 posts to classify.
+2026-02-10 19:19:07,834 INFO [logger.py]: Getting posts to classify for inference type intergroup.
+2026-02-10 19:19:07,834 INFO [logger.py]: Latest inference timestamp: None
+2026-02-10 19:19:08,088 INFO [logger.py]: After dropping duplicates, 436710 posts remain.
+2026-02-10 19:19:08,488 INFO [logger.py]: After filtering, 429591 posts remain.
+Execution time for get_posts_to_classify: 0 minutes, 5 seconds
+Memory usage for get_posts_to_classify: 1015.703125 MB
+2026-02-10 19:19:11,262 INFO [logger.py]: Limited posts from 429591 to 49127 (max_records_per_run=50000, included 50 complete batches)
+2026-02-10 19:19:11,356 INFO [logger.py]: Classifying 49127 posts with intergroup classifier...
+Classifying batches:   0%|                                                                                                                                | 0/99 [00:00<?, ?batch/s]2026-02-10 19:19:12,431 INFO [logger.py]: [Completion percentage: 0%] Processing batch 0/99...
+
+...
+
 
 ```
 
