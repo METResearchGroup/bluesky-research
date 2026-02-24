@@ -166,6 +166,9 @@ cython_debug/
 # make sure that no DBs are committed.
 *.db
 
+# Tap (indigo) clone for experiments/2026-02-24_tap_experiments
+indigo/
+
 # terraform stuff
 .terraform
 .terraform.*
