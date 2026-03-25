@@ -1,0 +1,458 @@
+[
+  {
+    "uri": "at://did:plc:2amplnivf2ujxqhd6lwfo4s5/app.bsky.feed.post/3l6xen3h4hx2d",
+    "$type": "app.bsky.feed.post",
+    "createdAt": "2024-10-20T15:58:37.060Z",
+    "embed": {
+      "$type": "app.bsky.embed.external",
+      "external": {
+        "description": "The council's actions risk reinforcing Republican attacks on Democratic leadership in Minneapolis.",
+        "thumb": {
+          "$type": "blob",
+          "ref": {
+            "$link": "bafkreiaowy7ztkvs6nujujiqoysskx335tlksf6ak53lqjut7kfutthhua"
+          },
+          "mimeType": "image/jpeg",
+          "size": 318885
+        },
+        "title": "How the City Council\u2019s Moves Strengthen GOP Talking Points",
+        "uri": "https://tinyurl.com/bttmpls45"
+      }
+    },
+    "facets": [
+      {
+        "features": [
+          {
+            "$type": "app.bsky.richtext.facet#link",
+            "uri": "https://tinyurl.com/bttmpls45"
+          }
+        ],
+        "index": {
+          "byteEnd": 264,
+          "byteStart": 243
+        }
+      }
+    ],
+    "langs": [
+      "en"
+    ],
+    "text": "Minneapolis City Council's latest actions risk reinforcing Republican critiques of Democratic leadership. With heavy spending from the DFL and a growing disconnect with many residents, the city could be giving the GOP an unexpected advantage.\ntinyurl.com/bttmpls45"
+  },
+  {
+    "uri": "at://did:plc:5o3isclhcnqmmiqfnqbbvkng/app.bsky.feed.post/3l6xh5yoxvt2t",
+    "$type": "app.bsky.feed.post",
+    "createdAt": "2024-10-20T16:46:42.617Z",
+    "embed": {
+      "$type": "app.bsky.embed.images",
+      "images": [
+        {
+          "alt": "Digital illustration of a crow wearing an asexual pride flag as a cape. The color palette is mostly grays and purple. The crow is proudly perched on a branch, and purple flowers and pedals surround it. ",
+          "aspectRatio": {
+            "height": 2000,
+            "width": 2000
+          },
+          "image": {
+            "$type": "blob",
+            "ref": {
+              "$link": "bafkreidygzy5mz55qbellyampsqn5axgojqwclh4fpjwf5p6colvbqa44m"
+            },
+            "mimeType": "image/jpeg",
+            "size": 624832
+          }
+        },
+        {
+          "alt": "Digital illustration of a raven holding an asexual pride flag in its beak. It is perched on a gray tree stump, and purple flowers and pedals surround it.",
+          "aspectRatio": {
+            "height": 2000,
+            "width": 2000
+          },
+          "image": {
+            "$type": "blob",
+            "ref": {
+              "$link": "bafkreibgv6kxixsymj36qy57mhrcxokyaqjdrscbgb3zrerzlgsx75rora"
+            },
+            "mimeType": "image/jpeg",
+            "size": 651300
+          }
+        }
+      ]
+    },
+    "langs": [
+      "en"
+    ],
+    "text": "Happy Ace Week!!! \ud83d\udda4\ud83e\ude76\ud83e\udd0d\ud83d\udc9c"
+  },
+  {
+    "uri": "at://did:plc:4ikfvfsb2iutyfedfijiflmf/app.bsky.feed.post/3l6zdh5qqsd2j",
+    "$type": "app.bsky.feed.post",
+    "createdAt": "2024-10-21T10:45:34.761Z",
+    "langs": [
+      "en"
+    ],
+    "reply": {
+      "parent": {
+        "cid": "bafyreif7jw5udulok46d25gzem5nhb3q2n45ws6tcfap745sckivtefmgy",
+        "uri": "at://did:plc:jtir3tfw5lgp34t7akdbwgkl/app.bsky.feed.post/3l6zd5aycfu26"
+      },
+      "root": {
+        "cid": "bafyreihieuzi4yh6gyyfvnlz2pdwvhukjnj6mrntxmco7tpxo2rqzojv2y",
+        "uri": "at://did:plc:hpqq4ke7r4q4nbd3lifqxyfu/app.bsky.feed.post/3l6yz7y3yag2d"
+      }
+    },
+    "text": "I just see this as another wave in the old SAIL/MIT war. Currently MIT's connectionist approach is dominant; LLMs are just Minsky's perceptron scaled up to higher-dimensions and focused on semantics.\n\nI talk to folk who are working to add symbolicist approaches back in, which I find intriguing."
+  },
+  {
+    "uri": "at://did:plc:yramokex2fyb66gybd5zyt4j/app.bsky.feed.post/3l6ww5yvxsp2t",
+    "$type": "app.bsky.feed.post",
+    "createdAt": "2024-10-20T11:42:29.468Z",
+    "embed": {
+      "$type": "app.bsky.embed.images",
+      "images": [
+        {
+          "alt": "My black cat Minnow, rolling on the jute rug and looking back and up at the camera. Her incisors are slightly protruding which indicates she has devilry on her mind",
+          "aspectRatio": {
+            "height": 2000,
+            "width": 1125
+          },
+          "image": {
+            "$type": "blob",
+            "ref": {
+              "$link": "bafkreif2iohbhjfacff654jhecioixd334b2kd4qayxruwtdol2obqjihy"
+            },
+            "mimeType": "image/jpeg",
+            "size": 511517
+          }
+        }
+      ]
+    },
+    "langs": [
+      "en"
+    ],
+    "text": "I am about to call the police"
+  },
+  {
+    "uri": "at://did:plc:65wvkjbgrpy7mpjkhuap6h3o/app.bsky.feed.post/3l6xctulprm2k",
+    "$type": "app.bsky.feed.post",
+    "createdAt": "2024-10-20T15:29:27.705Z",
+    "embed": {
+      "$type": "app.bsky.embed.images",
+      "images": [
+        {
+          "alt": "anime drawing done by mouse by artist GOODNIGHTILUKA on the screen of a Macintosh Classic II desktop computer",
+          "aspectRatio": {
+            "height": 2000,
+            "width": 1500
+          },
+          "image": {
+            "$type": "blob",
+            "ref": {
+              "$link": "bafkreid3gsrnkrrdbqykg2245fc44vwixnka7vgntpsr5ec6zyomuxz3km"
+            },
+            "mimeType": "image/jpeg",
+            "size": 594321
+          }
+        }
+      ]
+    },
+    "langs": [
+      "en"
+    ],
+    "text": "I drew my oc on a 1990's Macintosh in the Macintosh Paint program (1987 ver) with a mouse!"
+  },
+  {
+    "uri": "at://did:plc:xvxp2tf6x347guptvcozhjaf/app.bsky.feed.post/3l6smgq52lx2c",
+    "$type": "app.bsky.feed.post",
+    "createdAt": "2024-10-18T18:37:45.710Z",
+    "embed": {
+      "$type": "app.bsky.embed.record",
+      "record": {
+        "cid": "bafyreiceaxxna6rptsfpcgdxsu2ploljyog43woh43dbeirade5kupo36u",
+        "uri": "at://did:plc:xvxp2tf6x347guptvcozhjaf/app.bsky.graph.starterpack/3l6smeby5k426"
+      }
+    },
+    "facets": [
+      {
+        "features": [
+          {
+            "$type": "app.bsky.richtext.facet#link",
+            "uri": "https://go.bsky.app/47JJRQb"
+          }
+        ],
+        "index": {
+          "byteEnd": 252,
+          "byteStart": 233
+        }
+      }
+    ],
+    "langs": [
+      "en"
+    ],
+    "text": "I made the List I had into a whole starter pack, that includes the feed too!\n\nThis should make it easier for folks to follow folks who are into/talk about games accessibility.\n\nLet me know if anyone is missing and I'll add them \ud83d\ude0a\ngo.bsky.app/47JJRQb"
+  },
+  {
+    "uri": "at://did:plc:373tgxcnrkp6372v4p2xfnlq/app.bsky.feed.post/3l6ww2zsmb723",
+    "$type": "app.bsky.feed.post",
+    "createdAt": "2024-10-20T11:40:49.006Z",
+    "embed": {
+      "$type": "app.bsky.embed.images",
+      "images": [
+        {
+          "alt": "",
+          "aspectRatio": {
+            "height": 1739,
+            "width": 2000
+          },
+          "image": {
+            "$type": "blob",
+            "ref": {
+              "$link": "bafkreidvex2djltlxmv45va2gigffm6lyi6m3uejxow5ynxjm7poshgeoq"
+            },
+            "mimeType": "image/jpeg",
+            "size": 449175
+          }
+        }
+      ]
+    },
+    "langs": [
+      "en"
+    ],
+    "text": "Some frogs! \ud83d\ude0a"
+  },
+  {
+    "uri": "at://did:plc:p2veux4oiwtqiqkm5p4qbtjf/app.bsky.feed.post/3l6zr4lcplr27",
+    "$type": "app.bsky.feed.post",
+    "createdAt": "2024-10-21T14:50:11.835Z",
+    "embed": {
+      "$type": "app.bsky.embed.external",
+      "external": {
+        "description": "INDIANAPOLIS \u2014 In a media call on Tuesday, U.S Senator Mike Braun (R-Ind) said that the U.S. Supreme Court was wrong to legalize interracial marriage in a ruling that stretches back to Loving v. Vi\u2026",
+        "thumb": {
+          "$type": "blob",
+          "ref": {
+            "$link": "bafkreidoaxj2l4lxprtndqfbg6c7tokwuhnfvhsfbziujynduwvkjfv2o4"
+          },
+          "mimeType": "image/jpeg",
+          "size": 423285
+        },
+        "title": "Sen. Mike Braun said interracial marriage ruling should be left to states",
+        "uri": "https://fox59.com/indiana-news/sen-mike-braun-said-interracial-marriage-ruling-should-be-left-to-states/"
+      }
+    },
+    "facets": [
+      {
+        "features": [
+          {
+            "$type": "app.bsky.richtext.facet#link",
+            "uri": "https://fox59.com/indiana-news/sen-mike-braun-said-interracial-marriage-ruling-should-be-left-to-states/"
+          }
+        ],
+        "index": {
+          "byteEnd": 290,
+          "byteStart": 265
+        }
+      }
+    ],
+    "langs": [
+      "en"
+    ],
+    "text": "This kind of thing is both infuriating and terrifying to me. Everything recently has been. But this? This is absurdity from the GOP and a reminder that more people than you realize are in danger. This kind of idea would literally stop me from marrying my fiancee. \nfox59.com/indiana-news..."
+  },
+  {
+    "uri": "at://did:plc:ez2e24bxg2rlf6i2ktm44kdm/app.bsky.feed.post/3l6yc6r5zzf2y",
+    "$type": "app.bsky.feed.post",
+    "createdAt": "2024-10-21T00:51:13.451Z",
+    "langs": [
+      "en"
+    ],
+    "text": "Which man in elden ring would treat u right"
+  },
+  {
+    "uri": "at://did:plc:5vv7asmqz5pnkt5dwj4qbyko/app.bsky.feed.post/3l6xzhvqoiq2r",
+    "$type": "app.bsky.feed.post",
+    "createdAt": "2024-10-20T22:14:21.170Z",
+    "embed": {
+      "$type": "app.bsky.embed.images",
+      "images": [
+        {
+          "alt": "",
+          "aspectRatio": {
+            "height": 2000,
+            "width": 2000
+          },
+          "image": {
+            "$type": "blob",
+            "ref": {
+              "$link": "bafkreih4o34zct5s4oyjexq3riqz5onwminharatb7x243seqo2dgzorri"
+            },
+            "mimeType": "image/jpeg",
+            "size": 627747
+          }
+        }
+      ]
+    },
+    "facets": [
+      {
+        "features": [
+          {
+            "$type": "app.bsky.richtext.facet#tag",
+            "tag": "dandadan"
+          }
+        ],
+        "index": {
+          "byteEnd": 28,
+          "byteStart": 19
+        }
+      },
+      {
+        "features": [
+          {
+            "$type": "app.bsky.richtext.facet#tag",
+            "tag": "art"
+          }
+        ],
+        "index": {
+          "byteEnd": 33,
+          "byteStart": 29
+        }
+      }
+    ],
+    "langs": [
+      "en"
+    ],
+    "text": "\ud83c\udfa8 more doodling\n#dandadan #art"
+  },
+  {
+    "uri": "at://did:plc:bf2dv73mtxovsiaf2ppqk7de/app.bsky.feed.post/3l6z5ztj2gc2z",
+    "$type": "app.bsky.feed.post",
+    "createdAt": "2024-10-21T09:08:39.564Z",
+    "embed": {
+      "$type": "app.bsky.embed.video",
+      "aspectRatio": {
+        "height": 590,
+        "width": 1022
+      },
+      "video": {
+        "$type": "blob",
+        "ref": {
+          "$link": "bafkreihhtn3wzpfyx2tussmsuplpyrnszicj7wz35rpomflqugcvrzlinm"
+        },
+        "mimeType": "video/mp4",
+        "size": 481213
+      }
+    },
+    "langs": [
+      "en"
+    ],
+    "text": "it took me close to an hour to find the source of a bug \ud83d\udc4d\ud83c\udffd"
+  },
+  {
+    "uri": "at://did:plc:realist5mcrfawzhtlnqfa6q/app.bsky.feed.post/3l6z4eszuem2y",
+    "$type": "app.bsky.feed.post",
+    "createdAt": "2024-10-21T08:39:01.755Z",
+    "embed": {
+      "$type": "app.bsky.embed.images",
+      "images": [
+        {
+          "alt": "The box art for the game Dixit. Truly a lovely, art based game. Great for the whole family.",
+          "aspectRatio": {
+            "height": 700,
+            "width": 700
+          },
+          "image": {
+            "$type": "blob",
+            "ref": {
+              "$link": "bafkreihhqkrqe4shiuprjd3q6vda7k5uggu5h2pvm4sbpmxs6xtpaocxrm"
+            },
+            "mimeType": "image/jpeg",
+            "size": 208715
+          }
+        }
+      ]
+    },
+    "langs": [
+      "en"
+    ],
+    "reply": {
+      "parent": {
+        "cid": "bafyreihc4ey7fojitmzdgtea6nfuqwqjuragrmokb7smait7rnqcix345m",
+        "uri": "at://did:plc:realist5mcrfawzhtlnqfa6q/app.bsky.feed.post/3l6z3wrhicj2c"
+      },
+      "root": {
+        "cid": "bafyreifg3ihseeyjz2o7gmvn6m5rwy7k3bn5o2qrr33mffqn7iz7mdkjry",
+        "uri": "at://did:plc:realist5mcrfawzhtlnqfa6q/app.bsky.feed.post/3l6xzccwjpx2s"
+      }
+    },
+    "text": "3. Truly a game for story telling people of all ages. It brings out the creativity and *playfulness* in everyone. This may have been the last game I got to play with my dad, and it was such a great way to get to see how his mind worked. Also the art is so whimsical a beautiful."
+  },
+  {
+    "uri": "at://did:plc:m6hdzfccnhk4nedvtsbtvsk6/app.bsky.feed.post/3l6xambpvgf2q",
+    "$type": "app.bsky.feed.post",
+    "createdAt": "2024-10-20T14:49:26.564Z",
+    "embed": {
+      "$type": "app.bsky.embed.video",
+      "aspectRatio": {
+        "height": 1920,
+        "width": 1920
+      },
+      "video": {
+        "$type": "blob",
+        "ref": {
+          "$link": "bafkreihpfsfkdbx2zt532gdrdul6u62hk2njltqeqg6ftaqdvom7zfx6fy"
+        },
+        "mimeType": "video/mp4",
+        "size": 1570904
+      }
+    },
+    "langs": [
+      "en"
+    ],
+    "text": "persona outfit animation i did earlier this year \ud83c\udf53"
+  },
+  {
+    "uri": "at://did:plc:4kl75hklwxonfrmh6jj4slvo/app.bsky.feed.post/3l6yfsf5fte2q",
+    "$type": "app.bsky.feed.post",
+    "createdAt": "2024-10-21T01:54:58.329Z",
+    "embed": {
+      "$type": "app.bsky.embed.images",
+      "images": [
+        {
+          "alt": "",
+          "aspectRatio": {
+            "height": 2000,
+            "width": 1416
+          },
+          "image": {
+            "$type": "blob",
+            "ref": {
+              "$link": "bafkreiengcayhj6jg5eomyeutls2cxtq7t53ud2n3zgp7nmj3ou632gxgi"
+            },
+            "mimeType": "image/jpeg",
+            "size": 475434
+          }
+        }
+      ]
+    },
+    "langs": [
+      "en"
+    ],
+    "text": "Soft girl summer \ud83c\udf1e"
+  },
+  {
+    "uri": "at://did:plc:474ldquxwzrlcvjhhbbk2wte/app.bsky.feed.post/3l6zekgzdle2r",
+    "$type": "app.bsky.feed.post",
+    "createdAt": "2024-10-21T11:05:18.574Z",
+    "langs": [
+      "en"
+    ],
+    "text": "Telling people to vote in their own interests is like telling them to eat more vegetables \n\nHumans crave political junk food, and politicians know how to serve it up at scale"
+  },
+  {
+    "uri": "at://did:plc:cohsnro2uub7ol542ee2qaig/app.bsky.feed.post/3l6zfyvwcbj2f",
+    "$type": "app.bsky.feed.post",
+    "createdAt": "2024-10-21T11:31:17.445Z",
+    "langs": [
+      "en"
+    ],
+    "text": "the school has \u201ccracked down\u201d on senior pranks so i suggested the junior class do a prank this year and make it look like the seniors did it. then next year, same idea, except make it look like the juniors did it."
+  }
+]
