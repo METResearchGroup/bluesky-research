@@ -77,6 +77,72 @@ def _parse_tap_like_post_event(event: dict) -> tuple[str | None, str | None, str
     return str(did_), like_uri, str(liked_uri)
 
 
+def _decode_ws_text(raw: str | bytes) -> str:
+    return raw.decode() if isinstance(raw, bytes) else raw
+
+
+def _ingest_like_event_text(text: str, likes: dict[str, tuple[str, str]]) -> None:
+    try:
+        event = json.loads(text)
+    except json.JSONDecodeError:
+        return
+    user_did, like_uri, liked_post_uri = _parse_tap_like_post_event(event)
+    if user_did and like_uri and liked_post_uri:
+        likes[like_uri] = (user_did, liked_post_uri)
+        logger.debug(f"Tap like: {like_uri} -> {liked_post_uri}")
+
+
+async def _recv_like_events_until_stop(
+    ws: Any,
+    stop: asyncio.Event,
+    likes: dict[str, tuple[str, str]],
+) -> None:
+    while not stop.is_set():
+        try:
+            raw = await asyncio.wait_for(ws.recv(), timeout=0.5)
+        except asyncio.TimeoutError:
+            if stop.is_set():
+                break
+            continue
+        _ingest_like_event_text(_decode_ws_text(raw), likes)
+
+
+async def _drain_like_events_short(
+    ws: Any,
+    likes: dict[str, tuple[str, str]],
+    drain_after_stop_sec: float,
+) -> None:
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + drain_after_stop_sec
+    while loop.time() < deadline:
+        try:
+            raw = await asyncio.wait_for(ws.recv(), timeout=0.15)
+        except asyncio.TimeoutError:
+            break
+        _ingest_like_event_text(_decode_ws_text(raw), likes)
+
+
+async def _poll_tap_quiescent(
+    tap: "TapRepoSync",
+    dids: list[str],
+    stop: asyncio.Event,
+    *,
+    poll_interval_sec: float,
+    quiesce_confirmations: int,
+) -> None:
+    stable = 0
+    while not stop.is_set():
+        await asyncio.sleep(poll_interval_sec)
+        try:
+            ok = all(tap.is_repo_active(d) for d in dids) and tap.get_outbox_buffer_count() == 0
+            stable = stable + 1 if ok else 0
+            if stable >= quiesce_confirmations:
+                stop.set()
+                return
+        except requests.RequestException as e:
+            logger.warning(f"Tap poller request error: {e}")
+
+
 def _process_one_tap_message(
     raw: str | bytes,
     wanted: set[str],
@@ -218,60 +284,21 @@ class TapRepoSync:
         channel_url = f"{self.ws_url}/channel"
         stop = asyncio.Event()
 
-        async def poller() -> None:
-            stable = 0
-            while not stop.is_set():
-                await asyncio.sleep(poll_interval_sec)
-                try:
-                    all_active = all(self.is_repo_active(d) for d in dids)
-                    outbox = self.get_outbox_buffer_count()
-                    if all_active and outbox == 0:
-                        stable += 1
-                        if stable >= quiesce_confirmations:
-                            stop.set()
-                            return
-                    else:
-                        stable = 0
-                except requests.RequestException as e:
-                    logger.warning(f"Tap poller request error: {e}")
-
         async def _run_once() -> None:
-            poller_task = asyncio.create_task(poller())
+            poller_task = asyncio.create_task(
+                _poll_tap_quiescent(
+                    self,
+                    dids,
+                    stop,
+                    poll_interval_sec=poll_interval_sec,
+                    quiesce_confirmations=quiesce_confirmations,
+                )
+            )
             try:
                 async with websockets.connect(channel_url) as ws:
                     await asyncio.to_thread(self.add_repos, dids)
-                    while not stop.is_set():
-                        try:
-                            raw = await asyncio.wait_for(ws.recv(), timeout=0.5)
-                        except asyncio.TimeoutError:
-                            if stop.is_set():
-                                break
-                            continue
-                        text = raw.decode() if isinstance(raw, bytes) else raw
-                        try:
-                            event = json.loads(text)
-                        except json.JSONDecodeError:
-                            continue
-                        user_did, like_uri, liked_post_uri = _parse_tap_like_post_event(event)
-                        if user_did and like_uri and liked_post_uri:
-                            likes[like_uri] = (user_did, liked_post_uri)
-                            logger.debug(f"Tap like: {like_uri} -> {liked_post_uri}")
-
-                    loop = asyncio.get_running_loop()
-                    deadline = loop.time() + drain_after_stop_sec
-                    while loop.time() < deadline:
-                        try:
-                            raw = await asyncio.wait_for(ws.recv(), timeout=0.15)
-                        except asyncio.TimeoutError:
-                            break
-                        text = raw.decode() if isinstance(raw, bytes) else raw
-                        try:
-                            event = json.loads(text)
-                        except json.JSONDecodeError:
-                            continue
-                        user_did, like_uri, liked_post_uri = _parse_tap_like_post_event(event)
-                        if user_did and like_uri and liked_post_uri:
-                            likes[like_uri] = (user_did, liked_post_uri)
+                    await _recv_like_events_until_stop(ws, stop, likes)
+                    await _drain_like_events_short(ws, likes, drain_after_stop_sec)
             finally:
                 poller_task.cancel()
                 try:
