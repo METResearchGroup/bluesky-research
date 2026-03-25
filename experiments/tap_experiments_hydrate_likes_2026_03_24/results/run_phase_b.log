@@ -1,0 +1,26 @@
+Phase B: hydrating 1888 distinct posts (1196 poster DIDs)…
+2026-03-24 20:26:53,508 INFO [logger.py]: Tap add_repos: 200
+Traceback (most recent call last):
+  File "/Users/mark/Documents/work/bluesky-research/experiments/tap_experiments_hydrate_likes_2026_03_24/run_tap_user_likes.py", line 246, in <module>
+    main()
+  File "/Users/mark/Documents/work/bluesky-research/experiments/tap_experiments_hydrate_likes_2026_03_24/run_tap_user_likes.py", line 217, in main
+    asyncio.run(
+  File "/Users/mark/.local/share/uv/python/cpython-3.10.16-macos-aarch64-none/lib/python3.10/asyncio/runners.py", line 44, in run
+    return loop.run_until_complete(main)
+  File "/Users/mark/.local/share/uv/python/cpython-3.10.16-macos-aarch64-none/lib/python3.10/asyncio/base_events.py", line 649, in run_until_complete
+    return future.result()
+  File "/Users/mark/Documents/work/bluesky-research/experiments/tap_experiments_hydrate_likes_2026_03_24/run_tap_user_likes.py", line 152, in _run_phase_b_only
+    df_posts = await _hydrate_liked_posts(tap, liked_post_uris, timeout_posts_sec)
+  File "/Users/mark/Documents/work/bluesky-research/experiments/tap_experiments_hydrate_likes_2026_03_24/run_tap_user_likes.py", line 92, in _hydrate_liked_posts
+    posts = await tap.wait_for_posts(
+  File "/Users/mark/Documents/work/bluesky-research/experiments/tap_experiments_2026_02_24/tap_client.py", line 229, in wait_for_posts
+    await asyncio.wait_for(
+  File "/Users/mark/.local/share/uv/python/cpython-3.10.16-macos-aarch64-none/lib/python3.10/asyncio/tasks.py", line 445, in wait_for
+    return fut.result()
+  File "/Users/mark/Documents/work/bluesky-research/experiments/tap_experiments_2026_02_24/tap_client.py", line 177, in _consume_tap_channel
+    async for raw in ws:
+  File "/Users/mark/Documents/work/bluesky-research/.venv/lib/python3.10/site-packages/websockets/asyncio/connection.py", line 242, in __aiter__
+    yield await self.recv()
+  File "/Users/mark/Documents/work/bluesky-research/.venv/lib/python3.10/site-packages/websockets/asyncio/connection.py", line 322, in recv
+    raise self.protocol.close_exc from self.recv_exc
+websockets.exceptions.ConnectionClosedError: no close frame received or sent

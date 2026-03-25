@@ -60,6 +60,52 @@ def _check_tap_health(base_url: str) -> None:
         ) from e
 
 
+def _write_likes_parquet(likes_map: dict[str, tuple[str, str]], output_dir: Path) -> Path:
+    rows_likes = [
+        {"user_did": t[0], "like_uri": uri, "liked_post_uri": t[1]}
+        for uri, t in likes_map.items()
+    ]
+    df_likes = pd.DataFrame(rows_likes)
+    likes_path = output_dir / "likes.parquet"
+    df_likes.to_parquet(likes_path, index=False)
+    print(f"Wrote {likes_path} ({len(df_likes)} rows)", flush=True)
+    return likes_path
+
+
+async def _hydrate_liked_posts(
+    tap: TapRepoSync,
+    liked_post_uris: list[str],
+    timeout_posts_sec: float,
+) -> pd.DataFrame:
+    if not liked_post_uris:
+        print(
+            "Phase B: no liked posts to hydrate; writing empty liked_posts.parquet",
+            flush=True,
+        )
+        return pd.DataFrame(columns=["post_uri", "post_json"])
+    poster_dids = list({extract_did_from_post_uri(u) for u in liked_post_uris})
+    print(
+        f"Phase B: hydrating {len(liked_post_uris)} distinct posts "
+        f"({len(poster_dids)} poster DIDs)…",
+        flush=True,
+    )
+    posts = await tap.wait_for_posts(
+        set(liked_post_uris),
+        timeout_sec=timeout_posts_sec,
+        dids_to_add=poster_dids,
+    )
+    print(
+        f"Phase B: received {len(posts)} of {len(liked_post_uris)} posts",
+        flush=True,
+    )
+    return pd.DataFrame(
+        [
+            {"post_uri": uri, "post_json": json.dumps(rec, default=str)}
+            for uri, rec in posts.items()
+        ]
+    )
+
+
 async def _run(
     *,
     base_url: str,
@@ -77,45 +123,33 @@ async def _run(
     )
     print(f"Phase A: distinct like records (post targets): {len(likes_map)}", flush=True)
 
-    rows_likes = [
-        {"user_did": t[0], "like_uri": uri, "liked_post_uri": t[1]}
-        for uri, t in likes_map.items()
-    ]
-    df_likes = pd.DataFrame(rows_likes)
-    likes_path = output_dir / "likes.parquet"
-    df_likes.to_parquet(likes_path, index=False)
-    print(f"Wrote {likes_path} ({len(df_likes)} rows)", flush=True)
+    _write_likes_parquet(likes_map, output_dir)
 
     liked_post_uris = sorted({t[1] for t in likes_map.values()})
-    if not liked_post_uris:
-        print(
-            "Phase B: no liked posts to hydrate; writing empty liked_posts.parquet",
-            flush=True,
-        )
-        df_posts = pd.DataFrame(columns=["post_uri", "post_json"])
-    else:
-        poster_dids = list({extract_did_from_post_uri(u) for u in liked_post_uris})
-        print(
-            f"Phase B: hydrating {len(liked_post_uris)} distinct posts "
-            f"({len(poster_dids)} poster DIDs)…",
-            flush=True,
-        )
-        posts = await tap.wait_for_posts(
-            set(liked_post_uris),
-            timeout_sec=timeout_posts_sec,
-            dids_to_add=poster_dids,
-        )
-        print(
-            f"Phase B: received {len(posts)} of {len(liked_post_uris)} posts",
-            flush=True,
-        )
-        df_posts = pd.DataFrame(
-            [
-                {"post_uri": uri, "post_json": json.dumps(rec, default=str)}
-                for uri, rec in posts.items()
-            ]
-        )
+    df_posts = await _hydrate_liked_posts(tap, liked_post_uris, timeout_posts_sec)
 
+    posts_path = output_dir / "liked_posts.parquet"
+    df_posts.to_parquet(posts_path, index=False)
+    print(f"Wrote {posts_path} ({len(df_posts)} rows)", flush=True)
+
+
+async def _run_phase_b_only(
+    *,
+    base_url: str,
+    likes_parquet: Path,
+    output_dir: Path,
+    timeout_posts_sec: float,
+) -> None:
+    if not likes_parquet.is_file():
+        raise SystemExit(f"likes parquet not found: {likes_parquet}")
+    df = pd.read_parquet(likes_parquet)
+    required = {"user_did", "like_uri", "liked_post_uri"}
+    missing = required - set(df.columns)
+    if missing:
+        raise SystemExit(f"likes parquet missing columns {missing}; have {list(df.columns)}")
+    liked_post_uris = sorted(df["liked_post_uri"].unique().tolist())
+    tap = TapRepoSync(base_url=base_url)
+    df_posts = await _hydrate_liked_posts(tap, liked_post_uris, timeout_posts_sec)
     posts_path = output_dir / "liked_posts.parquet"
     df_posts.to_parquet(posts_path, index=False)
     print(f"Wrote {posts_path} ({len(df_posts)} rows)", flush=True)
@@ -160,7 +194,35 @@ def main() -> None:
         action="store_true",
         help="Do not GET /health before running (for dry imports only)",
     )
+    parser.add_argument(
+        "--phase-b-only",
+        action="store_true",
+        help="Skip Phase A; read likes from --likes-parquet and only hydrate posts (Phase B)",
+    )
+    parser.add_argument(
+        "--likes-parquet",
+        type=Path,
+        default=None,
+        help="Input likes.parquet for --phase-b-only (default: OUTPUT_DIR/likes.parquet)",
+    )
     args = parser.parse_args()
+
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+
+    if not args.skip_health_check:
+        _check_tap_health(args.tap_base_url)
+
+    if args.phase_b_only:
+        likes_in = args.likes_parquet or (args.output_dir / "likes.parquet")
+        asyncio.run(
+            _run_phase_b_only(
+                base_url=args.tap_base_url,
+                likes_parquet=likes_in,
+                output_dir=args.output_dir,
+                timeout_posts_sec=args.timeout_posts,
+            )
+        )
+        return
 
     seed_path = args.user_dids_json
     if seed_path is None:
@@ -168,11 +230,6 @@ def main() -> None:
         if bundled.is_file():
             seed_path = bundled
     seed_dids = _load_seed_dids(seed_path)
-
-    args.output_dir.mkdir(parents=True, exist_ok=True)
-
-    if not args.skip_health_check:
-        _check_tap_health(args.tap_base_url)
 
     asyncio.run(
         _run(
