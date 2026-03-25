@@ -17,6 +17,7 @@ logger = get_logger(__name__)
 DEFAULT_BASE_URL = "http://localhost:2480"
 DEFAULT_WS_URL = "ws://localhost:2480"
 POST_COLLECTION = "app.bsky.feed.post"
+LIKE_COLLECTION = "app.bsky.feed.like"
 
 
 def _ws_url_from_base(base_url: str) -> str:
@@ -45,6 +46,35 @@ def _parse_tap_record_event(event: dict, collection: str) -> tuple[str | None, d
     if isinstance(inner, dict):
         return uri, inner
     return uri, rec
+
+
+def _parse_tap_like_post_event(event: dict) -> tuple[str | None, str | None, str | None]:
+    """
+    Parse a Tap record event for app.bsky.feed.like where the subject is a feed post.
+
+    Returns (liker_did, like_uri, liked_post_uri) or (None, None, None) if not applicable.
+    """
+    if event.get("type") != "record":
+        return None, None, None
+    rec = event.get("record")
+    if not isinstance(rec, dict):
+        return None, None, None
+    did_ = rec.get("did")
+    coll = rec.get("collection")
+    rkey = rec.get("rkey")
+    if not all([did_, coll, rkey]) or coll != LIKE_COLLECTION:
+        return None, None, None
+    like_uri = f"at://{did_}/{coll}/{rkey}"
+    inner = rec.get("record")
+    if not isinstance(inner, dict):
+        return None, None, None
+    subj = inner.get("subject")
+    if not isinstance(subj, dict):
+        return None, None, None
+    liked_uri = subj.get("uri")
+    if not liked_uri or "/app.bsky.feed.post/" not in str(liked_uri):
+        return None, None, None
+    return str(did_), like_uri, str(liked_uri)
 
 
 def _process_one_tap_message(
@@ -139,6 +169,124 @@ class TapRepoSync:
         except asyncio.TimeoutError:
             logger.warning(f"Tap wait_for_posts timed out; got {len(result)} of {len(post_uris)}")
         return result
+
+    def get_repo_info(self, did: str) -> dict[str, Any] | None:
+        """GET /info/:did — repo state, record count, etc. Returns None if repo is not yet tracked."""
+        url = f"{self.base_url}/info/{did}"
+        resp = requests.get(url, timeout=30)
+        if resp.status_code == 404:
+            return None
+        resp.raise_for_status()
+        return resp.json()
+
+    def get_outbox_buffer_count(self) -> int:
+        """GET /stats/outbox-buffer — global pending outbox events (indigo Tap)."""
+        url = f"{self.base_url}/stats/outbox-buffer"
+        resp = requests.get(url, timeout=30)
+        resp.raise_for_status()
+        data = resp.json()
+        if isinstance(data, dict) and "outbox_buffer" in data:
+            return int(data["outbox_buffer"])
+        return 0
+
+    def is_repo_active(self, did: str) -> bool:
+        info = self.get_repo_info(did)
+        if not info:
+            return False
+        return str(info.get("state", "")).lower() == "active"
+
+    async def collect_likes_for_dids(
+        self,
+        dids: list[str],
+        *,
+        poll_interval_sec: float = 1.0,
+        max_wait_sec: float = 3600.0,
+        quiesce_confirmations: int = 2,
+        drain_after_stop_sec: float = 3.0,
+    ) -> dict[str, tuple[str, str]]:
+        """
+        Connect to the Tap WebSocket, add liker DIDs, stream app.bsky.feed.like events.
+
+        Stops when every DID is active in /info and the outbox buffer reads 0 for
+        quiesce_confirmations consecutive polls (Tap may deliver at-least-once; dedupe by like_uri).
+
+        Returns map like_uri -> (user_did, liked_post_uri).
+        """
+        if not dids:
+            return {}
+        likes: dict[str, tuple[str, str]] = {}
+        channel_url = f"{self.ws_url}/channel"
+        stop = asyncio.Event()
+
+        async def poller() -> None:
+            stable = 0
+            while not stop.is_set():
+                await asyncio.sleep(poll_interval_sec)
+                try:
+                    all_active = all(self.is_repo_active(d) for d in dids)
+                    outbox = self.get_outbox_buffer_count()
+                    if all_active and outbox == 0:
+                        stable += 1
+                        if stable >= quiesce_confirmations:
+                            stop.set()
+                            return
+                    else:
+                        stable = 0
+                except requests.RequestException as e:
+                    logger.warning(f"Tap poller request error: {e}")
+
+        async def _run_once() -> None:
+            poller_task = asyncio.create_task(poller())
+            try:
+                async with websockets.connect(channel_url) as ws:
+                    await asyncio.to_thread(self.add_repos, dids)
+                    while not stop.is_set():
+                        try:
+                            raw = await asyncio.wait_for(ws.recv(), timeout=0.5)
+                        except asyncio.TimeoutError:
+                            if stop.is_set():
+                                break
+                            continue
+                        text = raw.decode() if isinstance(raw, bytes) else raw
+                        try:
+                            event = json.loads(text)
+                        except json.JSONDecodeError:
+                            continue
+                        user_did, like_uri, liked_post_uri = _parse_tap_like_post_event(event)
+                        if user_did and like_uri and liked_post_uri:
+                            likes[like_uri] = (user_did, liked_post_uri)
+                            logger.debug(f"Tap like: {like_uri} -> {liked_post_uri}")
+
+                    loop = asyncio.get_running_loop()
+                    deadline = loop.time() + drain_after_stop_sec
+                    while loop.time() < deadline:
+                        try:
+                            raw = await asyncio.wait_for(ws.recv(), timeout=0.15)
+                        except asyncio.TimeoutError:
+                            break
+                        text = raw.decode() if isinstance(raw, bytes) else raw
+                        try:
+                            event = json.loads(text)
+                        except json.JSONDecodeError:
+                            continue
+                        user_did, like_uri, liked_post_uri = _parse_tap_like_post_event(event)
+                        if user_did and like_uri and liked_post_uri:
+                            likes[like_uri] = (user_did, liked_post_uri)
+            finally:
+                poller_task.cancel()
+                try:
+                    await poller_task
+                except asyncio.CancelledError:
+                    pass
+
+        try:
+            await asyncio.wait_for(_run_once(), timeout=max_wait_sec)
+        except asyncio.TimeoutError:
+            logger.warning(
+                f"Tap collect_likes_for_dids timed out after {max_wait_sec}s; "
+                f"collected {len(likes)} distinct likes"
+            )
+        return likes
 
 
 def extract_did_from_post_uri(post_uri: str) -> str:
