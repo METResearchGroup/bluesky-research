@@ -1,0 +1,6 @@
+Phase A: collecting likes for 4 DIDs via Tap…
+2026-03-24 19:59:05,064 INFO [logger.py]: Tap add_repos: 200
+Phase A: distinct like records (post targets): 1897
+Wrote experiments/tap_experiments_hydrate_likes_2026_03_24/results/likes.parquet (1897 rows)
+Phase B: hydrating 1888 distinct posts (1196 poster DIDs)…
+2026-03-24 19:59:16,692 INFO [logger.py]: Tap add_repos: 200
