@@ -431,7 +431,7 @@ class Queue:
                 )
                 await conn.commit()
             except Exception as e:
-                logger.error(f"Failed to write batch {i+1}/{total_batches}: {e}")
+                logger.error(f"Failed to write batch {i + 1}/{total_batches}: {e}")
                 # Consider whether to re-raise or continue with next batch
                 raise  # Re-raising will abort the entire operation
             finally:
@@ -489,6 +489,95 @@ class Queue:
                 break
             items.append(item)
         return items
+
+    def batch_claim_items_by_ids(self, ids: Iterable[int]) -> list[QueueItem]:
+        """Atomically claim multiple pending items by IDs.
+
+        This updates rows from status='pending' to status='processing' for the
+        provided IDs and returns the rows that were successfully claimed.
+
+        Notes:
+        - IDs that do not exist are ignored.
+        - IDs that are not in status='pending' are ignored.
+        - Safe under concurrency: competing claimers will only receive rows they
+          successfully transitioned from pending -> processing.
+        """
+        ids_list = list(ids)
+        if not ids_list:
+            return []
+
+        with sqlite3.connect(self.db_path) as conn:
+            placeholders = ",".join("?" for _ in ids_list)
+            cursor = conn.execute(
+                f"""
+                UPDATE {self._queue_table_sql}
+                SET status = 'processing'
+                WHERE status = 'pending' AND id IN ({placeholders})
+                RETURNING id, payload, metadata, created_at, status
+                """,  # nosec B608
+                tuple(ids_list),
+            )
+            rows = cursor.fetchall()
+
+            items: list[QueueItem] = []
+            for row in rows:
+                items.append(
+                    QueueItem(
+                        id=row[0],
+                        payload=row[1],
+                        metadata=row[2],
+                        created_at=row[3],
+                        status=row[4],
+                    )
+                )
+            logger.info(f"Claimed {len(items)} items from queue.")
+            return items
+
+    def reset_processing_items_to_pending(
+        self,
+        *,
+        older_than_timestamp: str | None = None,
+        dry_run: bool = True,
+    ) -> int:
+        """Reset 'processing' items back to 'pending'.
+
+        Intended as an operational/admin escape hatch when workers crash after
+        claiming batches (pending -> processing) but before completing/deleting
+        those queue rows.
+
+        Args:
+            older_than_timestamp: If provided, only reset rows where
+                created_at < older_than_timestamp. The queue stores created_at in
+                pipeline timestamp format (YYYY-MM-DD-HH:MM:SS), which is
+                lexicographically comparable for ordering.
+            dry_run: If True, do not update any rows; only return the count that
+                *would* be updated.
+
+        Returns:
+            Number of rows updated (or would be updated in dry_run mode).
+        """
+        conditions = ["status = 'processing'"]
+        params: list[str] = []
+        if older_than_timestamp is not None:
+            conditions.append("created_at < ?")
+            params.append(older_than_timestamp)
+
+        where_clause = " AND ".join(conditions)
+        with sqlite3.connect(self.db_path) as conn:
+            if dry_run:
+                cursor = conn.execute(
+                    f"SELECT COUNT(*) FROM {self._queue_table_sql} WHERE {where_clause}",  # nosec B608
+                    tuple(params),
+                )
+                return int(cursor.fetchone()[0])
+
+            cursor = conn.execute(
+                f"UPDATE {self._queue_table_sql} SET status = 'pending' WHERE {where_clause}",  # nosec B608
+                tuple(params),
+            )
+            updated = int(cursor.rowcount)
+            logger.info(f"Reset {updated} items from processing to pending.")
+            return updated
 
     def batch_delete_items_by_ids(self, ids: Iterable[int]) -> int:
         """Delete multiple items from queue by their ids.
