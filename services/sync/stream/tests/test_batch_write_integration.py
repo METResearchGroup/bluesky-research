@@ -273,8 +273,12 @@ class TestBatchWriteInNetworkActivity:
             },
         ]
         
-        # Clean up any existing files first
-        cleanup_directory(post_path)
+        # Clean up any existing files first.
+        #
+        # Note: the in-network exporter reads *all* author_did subdirectories under
+        # .../in_network_user_activity/create/post/, so we must ensure that parent
+        # directory is clean to avoid cross-test pollution from prior runs.
+        cleanup_directory(os.path.dirname(post_path))
         
         # Write posts to cache
         for i, post in enumerate(test_posts):
