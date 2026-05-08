@@ -55,9 +55,6 @@ def get_posts_to_preprocess(
     logger.info(f"Loaded {len(latest_payloads)} posts to preprocess.")
     logger.info(f"Latest preprocessing timestamp: {latest_preprocessing_timestamp}")
 
-    # TODO: check if I need to transform the posts to fit the format expected
-    # by the preprocess_latest_posts function.
-
     if not latest_payloads:
         logger.info("No posts to preprocess.")
         return []
@@ -76,14 +73,14 @@ def preprocess_latest_raw_data(
     logger.info(f"Preprocessing the latest raw data at {current_datetime_str}.")
     backfill_latest_timestamp: Optional[str] = determine_backfill_latest_timestamp(
         backfill_duration=backfill_duration,
-        backfill_period=backfill_period,
+        backfill_period=backfill_period,  # type: ignore
     )
     posts_to_preprocess: list[dict] = get_posts_to_preprocess(
         timestamp=backfill_latest_timestamp,
         previous_run_metadata=previous_run_metadata,
     )
     custom_args = {}
-    if event.get("overwrite_preprocessing_timestamp", False):
+    if event and event.get("overwrite_preprocessing_timestamp", False):
         custom_args["new_timestamp_field"] = event.get(
             "new_timestamp_field", "synctimestamp"
         )
