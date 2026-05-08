@@ -92,6 +92,7 @@ jobs:
           services/participant_data/tests \
           services/consolidate_enrichment_integrations/tests \
           services/calculate_superposters/tests \
+          services/preprocess_raw_data/tests \
           services/sync/stream/tests \
           services/sync/jetstream/tests \
           transform/tests

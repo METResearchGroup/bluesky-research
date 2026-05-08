@@ -21,13 +21,14 @@ def _stage_remove_posts_without_text(posts: pd.DataFrame) -> tuple[pd.DataFrame,
     """Remove posts with missing text."""
     text_series = cast(pd.Series, posts["text"])
     num_posts_without_text = int(text_series.isna().sum())
+    # Materialize a new frame here so downstream column writes are safe and explicit.
     filtered_posts = cast(pd.DataFrame, posts[text_series.notna()].copy())
     return filtered_posts, num_posts_without_text
 
 
 def _stage_mark_english(posts: pd.DataFrame) -> tuple[pd.DataFrame, int]:
     """Add is_english classification and return count of english posts."""
-    posts_with_language = posts.copy()
+    posts_with_language = posts
     text_series = cast(pd.Series, posts_with_language["text"])
     posts_with_language["is_english"] = filter_text_is_english(texts=text_series)
     num_english_posts = int(cast(pd.Series, posts_with_language["is_english"]).sum())
@@ -37,12 +38,13 @@ def _stage_mark_english(posts: pd.DataFrame) -> tuple[pd.DataFrame, int]:
 def _stage_keep_english(posts: pd.DataFrame) -> pd.DataFrame:
     """Keep only english posts."""
     english_series = cast(pd.Series, posts["is_english"])
+    # Materialize after filtering to avoid chained-assignment warnings in later stages.
     return cast(pd.DataFrame, posts[english_series].copy())
 
 
 def _stage_add_nsfw_and_spam_flags(posts: pd.DataFrame) -> pd.DataFrame:
     """Add nsfw/spam helper columns."""
-    flagged_posts = posts.copy()
+    flagged_posts = posts
     text_series = cast(pd.Series, flagged_posts["text"])
     labels_series = cast(pd.Series, flagged_posts["labels"])
     author_did_series = cast(pd.Series, flagged_posts["author_did"])
@@ -60,7 +62,7 @@ def _stage_add_nsfw_and_spam_flags(posts: pd.DataFrame) -> pd.DataFrame:
 
 def _stage_add_filter_decision(posts: pd.DataFrame) -> pd.DataFrame:
     """Add pass/fail decision columns."""
-    posts_with_decisions = posts.copy()
+    posts_with_decisions = posts
     posts_with_decisions["passed_filters"] = ~(
         posts_with_decisions["post_is_nsfw"]
         | posts_with_decisions["author_is_nsfw"]
@@ -78,7 +80,7 @@ def _stage_add_timestamps(
     posts: pd.DataFrame, custom_args: dict[str, Any]
 ) -> pd.DataFrame:
     """Add preprocessing and filtered timestamps."""
-    posts_with_timestamps = posts.copy()
+    posts_with_timestamps = posts
     if custom_args:
         timestamp_field = custom_args["new_timestamp_field"]
         posts_with_timestamps["preprocessing_timestamp"] = posts_with_timestamps[
@@ -102,14 +104,14 @@ def _build_filter_to_count_map(posts: pd.DataFrame) -> dict[str, int]:
 
 
 def _emit_filtering_logs(
-    posts: pd.DataFrame,
+    num_total_posts: int,
     num_posts_without_text: int,
     num_posts_after_null_filter: int,
     num_english_posts: int,
     filter_to_count_map: dict[str, int],
 ) -> None:
     """Emit logs from computed stats without mutating data."""
-    logger.info(f"Total posts for filtering: {len(posts) + num_posts_without_text}")
+    logger.info(f"Total posts for filtering: {num_total_posts}")
     logger.info(f"Number of posts without text: {num_posts_without_text}")
     logger.info(
         f"After English filtering, number of posts that passed filter: {num_english_posts}"
@@ -119,7 +121,6 @@ def _emit_filtering_logs(
     )
     for filter_col, count in filter_to_count_map.items():
         logger.info(f"Number of posts failed `{filter_col}`: {count}")
-    print(posts["filtered_by_func"].value_counts())
 
 
 def _build_updated_posts_metadata(
@@ -153,28 +154,28 @@ def filter_posts(
     posts: pd.DataFrame, custom_args: dict[str, Any]
 ) -> tuple[pd.DataFrame, dict[str, Any]]:
     """Applies the filtering steps."""  # noqa
-    posts_without_null_text, num_posts_without_text = _stage_remove_posts_without_text(
-        posts
-    )
-    posts_with_english, num_english_posts = _stage_mark_english(posts_without_null_text)
-    english_posts = _stage_keep_english(posts_with_english)
-    posts_with_flags = _stage_add_nsfw_and_spam_flags(english_posts)
-    posts_with_decisions = _stage_add_filter_decision(posts_with_flags)
-    posts_with_timestamps = _stage_add_timestamps(posts_with_decisions, custom_args)
+    num_total_posts = len(posts)
+    posts, num_posts_without_text = _stage_remove_posts_without_text(posts)
+    num_posts_after_null_filter = len(posts)
+    posts, num_english_posts = _stage_mark_english(posts)
+    posts = _stage_keep_english(posts)
+    posts = _stage_add_nsfw_and_spam_flags(posts)
+    posts = _stage_add_filter_decision(posts)
+    posts = _stage_add_timestamps(posts, custom_args)
 
-    filter_to_count_map = _build_filter_to_count_map(posts_with_timestamps)
+    filter_to_count_map = _build_filter_to_count_map(posts)
     _emit_filtering_logs(
-        posts=posts_with_timestamps,
+        num_total_posts=num_total_posts,
         num_posts_without_text=num_posts_without_text,
-        num_posts_after_null_filter=len(posts_without_null_text),
+        num_posts_after_null_filter=num_posts_after_null_filter,
         num_english_posts=num_english_posts,
         filter_to_count_map=filter_to_count_map,
     )
     updated_posts_metadata = _build_updated_posts_metadata(
-        posts=posts_with_timestamps,
+        posts=posts,
         num_english_posts=num_english_posts,
         filter_to_count_map=filter_to_count_map,
     )
-    posts_for_return = _drop_internal_columns(posts_with_timestamps)
+    posts_for_return = _drop_internal_columns(posts)
     logger.info("Completed post filtering in preprocessing pipeline.")
     return (posts_for_return, updated_posts_metadata)
