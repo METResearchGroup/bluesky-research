@@ -54,16 +54,16 @@ In `filter_posts(...)`:
 - Removes rows with null `text`.
 - Adds `is_english`; keeps only English posts.
 - Computes filter flags:
-  - `author_is_bot`
   - `post_is_nsfw`
   - `author_is_nsfw`
   - `is_spam`
-  - `is_hate_speech`
 - Sets:
   - `passed_filters` (inverse of failure flags)
   - `filtered_by_func` (first matching failed filter label)
   - `preprocessing_timestamp` / `filtered_at`
 - Returns both filtered DataFrame and metadata summary counts.
+
+Previously stubbed bot and hate-speech classifiers were removed from this pipeline; `passed_filters` and metadata only reflect English, NSFW, and spam signals above.
 
 ## Queue contract
 
