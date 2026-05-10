@@ -23,8 +23,6 @@ COPY services/consolidate_post_records/* ./services/consolidate_post_records/
 COPY services/participant_data/* ./services/participant_data/
 COPY services/preprocess_raw_data/*.py ./services/preprocess_raw_data/
 COPY services/preprocess_raw_data/helper.py ./services/preprocess_raw_data/helper.py
-COPY services/preprocess_raw_data/classify_bots/*.py ./services/preprocess_raw_data/classify_bots/
-COPY services/preprocess_raw_data/classify_hate_speech/*.py ./services/preprocess_raw_data/classify_hate_speech/
 COPY services/preprocess_raw_data/classify_language/*.py ./services/preprocess_raw_data/classify_language/
 COPY services/preprocess_raw_data/classify_language/lid.176.bin ./services/preprocess_raw_data/classify_language/lid.176.bin
 COPY services/preprocess_raw_data/classify_nsfw_content/*.py ./services/preprocess_raw_data/classify_nsfw_content/

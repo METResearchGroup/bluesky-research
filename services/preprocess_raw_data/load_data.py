@@ -1,13 +1,14 @@
 """Load raw data for preprocessing"""
 
 import json
-from typing import Optional
+from typing import cast
 
 import pandas as pd
 
 from lib.aws.athena import Athena
 from lib.aws.dynamodb import DynamoDB
 from lib.aws.s3 import S3
+from lib.db.models import StorageTier
 from lib.db.bluesky_models.embed import (
     ProcessedExternalEmbed,
     ProcessedRecordEmbed,
@@ -70,38 +71,42 @@ def transform_latest_posts(df: pd.DataFrame) -> list[ConsolidatedPostRecordModel
 
 @track_performance
 def load_latest_firehose_posts(
-    timestamp: str, limit: Optional[int] = None
+    timestamp: str, limit: int | None = None
 ) -> pd.DataFrame:
     """Queries the firehose table for the latest posts."""
     in_network_user_posts_df: pd.DataFrame = load_data_from_local_storage(
         service="in_network_user_activity",
         latest_timestamp=timestamp,
-        storage_tiers=["active"],
+        storage_tiers=[StorageTier.ACTIVE],
     )
     study_user_posts_df: pd.DataFrame = load_data_from_local_storage(
         service="study_user_activity",
         latest_timestamp=timestamp,
-        storage_tiers=["active"],
+        storage_tiers=[StorageTier.ACTIVE],
     )
     df = pd.concat([in_network_user_posts_df, study_user_posts_df], ignore_index=True)
     if limit:
         df = df.head(limit)
-    df = df[df["text"].notna()]
-    df["embed"] = df["embed"].apply(lambda x: json.loads(x) if pd.notna(x) else x)
+    text_series = cast(pd.Series, df["text"])
+    df = cast(pd.DataFrame, df[text_series.notna()])
+    embed_series = cast(pd.Series, df["embed"])
+    df["embed"] = embed_series.apply(lambda x: json.loads(x) if pd.notna(x) else x)
     return df
 
 
 @track_performance
 def load_latest_most_liked_posts(
-    timestamp: str, limit: Optional[int] = None
+    timestamp: str, limit: int | None = None
 ) -> pd.DataFrame:  # noqa
     df: pd.DataFrame = load_data_from_local_storage(
         service="sync_most_liked_posts",
         latest_timestamp=timestamp,
-        storage_tiers=["active"],
+        storage_tiers=[StorageTier.ACTIVE],
     )
     if limit:
         df = df.head(limit)
-    df = df[df["text"].notna()]
-    df["embed"] = df["embed"].apply(lambda x: json.loads(x) if pd.notna(x) else x)
+    text_series = cast(pd.Series, df["text"])
+    df = cast(pd.DataFrame, df[text_series.notna()])
+    embed_series = cast(pd.Series, df["embed"])
+    df["embed"] = embed_series.apply(lambda x: json.loads(x) if pd.notna(x) else x)
     return df

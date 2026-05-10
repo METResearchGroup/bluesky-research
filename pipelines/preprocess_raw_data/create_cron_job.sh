@@ -1,4 +1,4 @@
-# This bash script will create a cron job that runs the sbatch submit_job.sh every 6 hours.
+# This bash script creates a cron job that runs sbatch submit_job.sh every 4 hours.
 
 # Get the current directory
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
