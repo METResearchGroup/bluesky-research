@@ -38,6 +38,8 @@ dependencies = [
     "packaging>=23.2",
     "typing-extensions>=4.12.2",
     "tenacity>=8.5.0,<9.0.0",
+    # Time zones (explicit; some paths no longer inherit pytz via transitive deps)
+    "pytz>=2024.1",
 ]
 
 [build-system]

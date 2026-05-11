@@ -85,7 +85,7 @@ def load_latest_firehose_posts(
         storage_tiers=[StorageTier.ACTIVE],
     )
     df = pd.concat([in_network_user_posts_df, study_user_posts_df], ignore_index=True)
-    if limit:
+    if limit is not None:
         df = df.head(limit)
     text_series = cast(pd.Series, df["text"])
     df = cast(pd.DataFrame, df[text_series.notna()])
@@ -103,7 +103,7 @@ def load_latest_most_liked_posts(
         latest_timestamp=timestamp,
         storage_tiers=[StorageTier.ACTIVE],
     )
-    if limit:
+    if limit is not None:
         df = df.head(limit)
     text_series = cast(pd.Series, df["text"])
     df = cast(pd.DataFrame, df[text_series.notna()])

@@ -162,6 +162,7 @@ def recover_failed_chunks(
 
 
 def _chunks_for_dates(dates: List[str], chunk_size: int) -> List[List[str]]:
+    """Slice ordered partition-date strings into fixed-size batches for worker chunks."""
     return [dates[i : i + chunk_size] for i in range(0, len(dates), chunk_size)]
 
 
@@ -173,6 +174,7 @@ def _run_parallel_chunks(
     config: ParallelConfig,
     shared_state: _SharedIntCounter,
 ) -> tuple[Dict[str, OperationResult], List[str]]:
+    """Submit all date chunks to ProcessPoolExecutor; collect results and FAILED date keys."""
     results: Dict[str, OperationResult] = {}
     failed_dates: List[str] = []
 
