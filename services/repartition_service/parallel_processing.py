@@ -9,7 +9,7 @@ import concurrent.futures
 import multiprocessing
 import time
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Protocol
 
 from lib.datetime_utils import get_partition_dates
 from lib.db.service_constants import MAP_SERVICE_TO_METADATA
@@ -22,6 +22,14 @@ from services.repartition_service.helper import (
 )
 
 logger = get_logger(__file__)
+
+
+class _SharedIntCounter(Protocol):
+    """Contract for multiprocessing.Value('i', ...) used by process_date_chunk."""
+
+    value: int
+
+    def get_lock(self): ...
 
 
 @dataclass
@@ -38,7 +46,7 @@ def process_date_chunk(
     dates: List[str],
     service: str,
     new_service_partition_key: str,
-    shared_state: Dict,
+    shared_state: _SharedIntCounter,
 ) -> Dict[str, OperationResult]:
     """Process a chunk of dates in a single process.
 
@@ -46,7 +54,7 @@ def process_date_chunk(
         dates (List[str]): List of partition dates to process
         service (str): Name of the service to repartition
         new_service_partition_key (str): Field name to use as the new partition key
-        shared_state (Dict): Shared state dictionary for progress tracking
+        shared_state: Shared integer counter created via multiprocessing.Value (not a dict).
 
     Returns:
         Dict[str, OperationResult]: Results for each date in the chunk
@@ -70,7 +78,7 @@ def process_date_chunk(
 
 
 def monitor_progress(
-    shared_state: multiprocessing.Value,
+    shared_state: _SharedIntCounter,
     total_dates: int,
     update_interval: int = 5,
     stop_event: Optional[multiprocessing.Event] = None,
@@ -78,7 +86,7 @@ def monitor_progress(
     """Monitor and log progress of parallel processing.
 
     Args:
-        shared_state (multiprocessing.Value): Shared counter of processed dates
+        shared_state: Shared counter (typically multiprocessing.Value('i', 0)).
         total_dates (int): Total number of dates to process
         update_interval (int): Seconds between progress updates
         stop_event (Optional[multiprocessing.Event]): Event to signal monitoring should stop
@@ -153,6 +161,50 @@ def recover_failed_chunks(
     return results
 
 
+def _chunks_for_dates(dates: List[str], chunk_size: int) -> List[List[str]]:
+    return [dates[i : i + chunk_size] for i in range(0, len(dates), chunk_size)]
+
+
+def _run_parallel_chunks(
+    date_chunks: List[List[str]],
+    *,
+    service: str,
+    new_service_partition_key: str,
+    config: ParallelConfig,
+    shared_state: _SharedIntCounter,
+) -> tuple[Dict[str, OperationResult], List[str]]:
+    results: Dict[str, OperationResult] = {}
+    failed_dates: List[str] = []
+
+    with concurrent.futures.ProcessPoolExecutor(
+        max_workers=config.max_workers
+    ) as executor:
+        futures = [
+            executor.submit(
+                process_date_chunk,
+                chunk,
+                service,
+                new_service_partition_key,
+                shared_state,
+            )
+            for chunk in date_chunks
+        ]
+
+        for future in concurrent.futures.as_completed(futures):
+            try:
+                chunk_results = future.result(timeout=config.timeout)
+                results.update(chunk_results)
+                failed_dates.extend(
+                    date
+                    for date, result in chunk_results.items()
+                    if result.status == OperationStatus.FAILED
+                )
+            except Exception as e:
+                logger.error(f"Chunk processing failed: {e}")
+
+    return results, failed_dates
+
+
 def repartition_data_for_partition_dates_parallel(
     start_date: str,
     end_date: str,
@@ -201,10 +253,7 @@ def repartition_data_for_partition_dates_parallel(
         logger.warning("No dates to process")
         return {}
 
-    date_chunks = [
-        dates[i : i + config.chunk_size]
-        for i in range(0, len(dates), config.chunk_size)
-    ]
+    date_chunks = _chunks_for_dates(dates, config.chunk_size)
 
     # Setup shared state and monitoring
     shared_state = multiprocessing.Value("i", 0)
@@ -215,35 +264,17 @@ def repartition_data_for_partition_dates_parallel(
     )
     monitor.start()
 
-    # Process chunks in parallel
-    results = {}
-    failed_dates = []
-    try:
-        with concurrent.futures.ProcessPoolExecutor(
-            max_workers=config.max_workers
-        ) as executor:
-            futures = []
-            for chunk in date_chunks:
-                future = executor.submit(
-                    process_date_chunk,
-                    chunk,
-                    service,
-                    new_service_partition_key,
-                    shared_state,
-                )
-                futures.append(future)
+    results: Dict[str, OperationResult] = {}
+    failed_dates: List[str] = []
 
-            # Collect results
-            for future in concurrent.futures.as_completed(futures):
-                try:
-                    chunk_results = future.result(timeout=config.timeout)
-                    results.update(chunk_results)
-                    # Identify failed dates
-                    for date, result in chunk_results.items():
-                        if result.status == OperationStatus.FAILED:
-                            failed_dates.append(date)
-                except Exception as e:
-                    logger.error(f"Chunk processing failed: {e}")
+    try:
+        results, failed_dates = _run_parallel_chunks(
+            date_chunks,
+            service=service,
+            new_service_partition_key=new_service_partition_key,
+            config=config,
+            shared_state=shared_state,
+        )
 
     finally:
         # Stop progress monitoring

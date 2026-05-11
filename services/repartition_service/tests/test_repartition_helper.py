@@ -245,15 +245,51 @@ class TestRepartitionDataForPartitionDates(unittest.TestCase):
         mock_get_dates.return_value = ["2024-01-01", "2024-01-02"]
         mock_metadata.__contains__.return_value = True
         mock_repartition_single.side_effect = [
-            OperationResult(status=OperationStatus.FAILED, error="Test error"),
-            OperationResult(status=OperationStatus.SUCCESS)
+            OperationResult(status=OperationStatus.FAILED, error=RuntimeError("test error")),
+            OperationResult(status=OperationStatus.SUCCESS),
         ]
-        
+
         # Should continue processing despite error
         repartition_data_for_partition_dates(
             start_date="2024-01-01",
             end_date="2024-01-02",
-            service="test_service"
+            service="test_service",
         )
-        
-        assert mock_repartition_single.call_count == 2 
+
+        assert mock_repartition_single.call_count == 2
+
+    @patch(
+        "services.repartition_service.parallel_processing.repartition_data_for_partition_dates_parallel"
+    )
+    @patch("services.repartition_service.helper.repartition_data_for_partition_date")
+    @patch("services.repartition_service.helper.get_partition_dates")
+    @patch("services.repartition_service.helper.MAP_SERVICE_TO_METADATA")
+    def test_use_parallel_dispatches_parallel(
+        self,
+        mock_metadata,
+        mock_get_dates,
+        mock_serial,
+        mock_parallel,
+    ):
+        """Parallel branch must not iterate sequential dates in helper."""
+        mock_metadata.__contains__.return_value = True
+        dummy = OperationResult(status=OperationStatus.SUCCESS)
+        mock_parallel.return_value = {"2024-01-01": dummy}
+
+        out = repartition_data_for_partition_dates(
+            start_date="2024-01-01",
+            end_date="2024-01-02",
+            service="test_service",
+            use_parallel=True,
+        )
+
+        mock_parallel.assert_called_once_with(
+            start_date="2024-01-01",
+            end_date="2024-01-02",
+            service="test_service",
+            new_service_partition_key="preprocessing_timestamp",
+            exclude_partition_dates=["2024-10-08"],
+        )
+        mock_get_dates.assert_not_called()
+        mock_serial.assert_not_called()
+        assert out == {"2024-01-01": dummy} 

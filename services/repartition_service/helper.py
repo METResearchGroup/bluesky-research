@@ -422,6 +422,7 @@ def repartition_data_for_partition_dates(
     service: str = "",
     new_service_partition_key: str = "preprocessing_timestamp",
     exclude_partition_dates: List[str] = None,
+    use_parallel: bool = False,
 ) -> Dict[str, OperationResult]:
     """Repartition data for multiple partition dates with error handling.
 
@@ -431,6 +432,7 @@ def repartition_data_for_partition_dates(
         service (str): Name of the service to repartition
         new_service_partition_key (str): Field name to use as the new partition key
         exclude_partition_dates (List[str], optional): List of dates to exclude
+        use_parallel (bool): If True, delegate to parallel workers (same per-date semantics).
 
     Returns:
         Dict[str, OperationResult]: Dictionary mapping partition dates to their
@@ -441,8 +443,8 @@ def repartition_data_for_partition_dates(
 
     Behavior:
         1. Validates service name and existence
-        2. Generates list of partition dates to process
-        3. Processes each partition date independently
+        2. Either delegates to parallel workers (use_parallel True) or iterates sequentially
+        3. For sequential mode, generates partition dates via get_partition_dates and processes each
         4. Returns results for all operations
     """
     if not service:
@@ -452,6 +454,20 @@ def repartition_data_for_partition_dates(
         raise ValueError(f"Unknown service: {service}")
 
     exclude_partition_dates = exclude_partition_dates or ["2024-10-08"]
+
+    if use_parallel:
+        from services.repartition_service.parallel_processing import (
+            repartition_data_for_partition_dates_parallel,
+        )
+
+        return repartition_data_for_partition_dates_parallel(
+            start_date=start_date,
+            end_date=end_date,
+            service=service,
+            new_service_partition_key=new_service_partition_key,
+            exclude_partition_dates=exclude_partition_dates,
+        )
+
     results: Dict[str, OperationResult] = {}
 
     partition_dates: List[str] = get_partition_dates(
