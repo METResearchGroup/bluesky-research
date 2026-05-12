@@ -6,10 +6,13 @@ integrity and providing progress monitoring.
 """
 
 import concurrent.futures
+import math
 import multiprocessing
 import time
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Protocol
+
+from concurrent.futures import Future
 
 from lib.datetime_utils import get_partition_dates
 from lib.db.service_constants import MAP_SERVICE_TO_METADATA
@@ -166,6 +169,98 @@ def _chunks_for_dates(dates: List[str], chunk_size: int) -> List[List[str]]:
     return [dates[i : i + chunk_size] for i in range(0, len(dates), chunk_size)]
 
 
+def _record_chunk_parallel_failure(
+    chunk: List[str],
+    exc: BaseException,
+    results: Dict[str, OperationResult],
+    failed_dates: List[str],
+) -> None:
+    """Register each date in chunk as FAILED when the worker future or batch times out."""
+    wrapped = RepartitionError(f"Chunk parallel execution failed: {exc}")
+    for date in chunk:
+        failed_dates.append(date)
+        results[date] = OperationResult(
+            status=OperationStatus.FAILED,
+            error=wrapped,
+            message=str(exc),
+        )
+
+
+def _merge_chunk_results_into(
+    chunk_results: Dict[str, OperationResult],
+    results: Dict[str, OperationResult],
+    failed_dates: List[str],
+) -> None:
+    results.update(chunk_results)
+    failed_dates.extend(
+        date
+        for date, result in chunk_results.items()
+        if result.status == OperationStatus.FAILED
+    )
+
+
+def _collect_one_future_result(
+    future: Future,
+    chunk: List[str],
+    *,
+    per_future_timeout: float,
+    results: Dict[str, OperationResult],
+    failed_dates: List[str],
+) -> None:
+    try:
+        chunk_results = future.result(timeout=per_future_timeout)
+        _merge_chunk_results_into(chunk_results, results, failed_dates)
+    except Exception as e:
+        logger.error(f"Chunk processing failed: {e}")
+        _record_chunk_parallel_failure(chunk, e, results, failed_dates)
+
+
+def _finalize_future_after_deadline(
+    fut: Future,
+    chunk: List[str],
+    results: Dict[str, OperationResult],
+    failed_dates: List[str],
+) -> None:
+    """Handle one future not consumed by as_completed before the global timeout."""
+    deadline_exc = TimeoutError(
+        "chunk did not complete before global parallel deadline"
+    )
+    if not fut.done():
+        _record_chunk_parallel_failure(chunk, deadline_exc, results, failed_dates)
+        fut.cancel()
+        return
+
+    exc = fut.exception()
+    if exc is not None:
+        _record_chunk_parallel_failure(chunk, exc, results, failed_dates)
+        return
+
+    try:
+        chunk_results = fut.result()
+        _merge_chunk_results_into(chunk_results, results, failed_dates)
+    except Exception as e:
+        _record_chunk_parallel_failure(chunk, e, results, failed_dates)
+
+
+def _finalize_pending_after_global_timeout(
+    future_to_chunk: Dict[Future, List[str]],
+    processed_futures: set[Future],
+    results: Dict[str, OperationResult],
+    failed_dates: List[str],
+    *,
+    global_deadline_seconds: float,
+    n_chunks: int,
+) -> None:
+    logger.error(
+        "Parallel chunks exceeded wall-clock deadline "
+        f"({global_deadline_seconds}s for {n_chunks} chunk(s))."
+    )
+    for fut, chunk in future_to_chunk.items():
+        if fut in processed_futures:
+            continue
+        _finalize_future_after_deadline(fut, chunk, results, failed_dates)
+
+
 def _run_parallel_chunks(
     date_chunks: List[List[str]],
     *,
@@ -174,35 +269,60 @@ def _run_parallel_chunks(
     config: ParallelConfig,
     shared_state: _SharedIntCounter,
 ) -> tuple[Dict[str, OperationResult], List[str]]:
-    """Submit all date chunks to ProcessPoolExecutor; collect results and FAILED date keys."""
+    """Submit chunks via ProcessPoolExecutor, mapping each Future back to its dates.
+
+    Uses ``as_completed(..., timeout=global_deadline)`` (derived from chunk count,
+    workers, and ``config.timeout``) plus per-future ``result(timeout=...)`` so
+    wall-clock bounds and chunk-level timeouts both apply. Worker or iterator
+    failures record FAILED ``OperationResult`` for every date in the chunk.
+    """
     results: Dict[str, OperationResult] = {}
     failed_dates: List[str] = []
+
+    n_chunks = len(date_chunks)
+    waves = max(1, math.ceil(n_chunks / max(1, config.max_workers)))
+    global_deadline_seconds = float(config.timeout * max(1, waves))
 
     with concurrent.futures.ProcessPoolExecutor(
         max_workers=config.max_workers
     ) as executor:
-        futures = [
-            executor.submit(
+        future_to_chunk: Dict[Future, List[str]] = {}
+        futures: List[Future] = []
+        for chunk in date_chunks:
+            fut = executor.submit(
                 process_date_chunk,
                 chunk,
                 service,
                 new_service_partition_key,
                 shared_state,
             )
-            for chunk in date_chunks
-        ]
+            future_to_chunk[fut] = chunk
+            futures.append(fut)
 
-        for future in concurrent.futures.as_completed(futures):
-            try:
-                chunk_results = future.result(timeout=config.timeout)
-                results.update(chunk_results)
-                failed_dates.extend(
-                    date
-                    for date, result in chunk_results.items()
-                    if result.status == OperationStatus.FAILED
+        processed_futures: set[Future] = set()
+        try:
+            completion_iter = concurrent.futures.as_completed(
+                futures, timeout=global_deadline_seconds
+            )
+            for future in completion_iter:
+                processed_futures.add(future)
+                chunk = future_to_chunk[future]
+                _collect_one_future_result(
+                    future,
+                    chunk,
+                    per_future_timeout=float(config.timeout),
+                    results=results,
+                    failed_dates=failed_dates,
                 )
-            except Exception as e:
-                logger.error(f"Chunk processing failed: {e}")
+        except concurrent.futures.TimeoutError:
+            _finalize_pending_after_global_timeout(
+                future_to_chunk,
+                processed_futures,
+                results,
+                failed_dates,
+                global_deadline_seconds=global_deadline_seconds,
+                n_chunks=n_chunks,
+            )
 
     return results, failed_dates
 

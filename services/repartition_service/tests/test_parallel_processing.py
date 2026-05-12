@@ -8,6 +8,7 @@ import pytest
 from services.repartition_service.helper import OperationResult, OperationStatus
 from services.repartition_service.parallel_processing import (
     ParallelConfig,
+    _run_parallel_chunks,
     process_date_chunk,
     recover_failed_chunks,
     repartition_data_for_partition_dates_parallel,
@@ -24,7 +25,8 @@ MOCK_META = {
 @pytest.fixture(autouse=True)
 def mock_map_parallel():
     with patch(
-        "services.repartition_service.parallel_processing.MAP_SERVICE_TO_METADATA", MOCK_META
+        "services.repartition_service.parallel_processing.MAP_SERVICE_TO_METADATA",
+        MOCK_META,
     ):
         yield
 
@@ -145,6 +147,39 @@ def test_parallel_retries_failed_chunks(
     assert results["2024-01-01"].status == OperationStatus.SUCCESS
 
 
+@patch("concurrent.futures.as_completed")
+@patch("concurrent.futures.ProcessPoolExecutor")
+def test_run_parallel_chunks_maps_future_exception_to_chunk_dates(
+    mock_executor_cls, mock_as_completed
+):
+    """When a worker future raises, every date in that chunk is recorded as FAILED."""
+    fut = MagicMock()
+    fut.result.side_effect = RuntimeError("worker process failed")
+
+    mock_executor_instance = MagicMock()
+    mock_executor_instance.submit.return_value = fut
+    mock_executor_instance.__enter__.return_value = mock_executor_instance
+    mock_executor_instance.__exit__.return_value = None
+    mock_executor_cls.return_value = mock_executor_instance
+    mock_as_completed.return_value = [fut]
+
+    results, failed_dates = _run_parallel_chunks(
+        [["2024-01-01", "2024-01-02"]],
+        service="test_service",
+        new_service_partition_key="preprocessing_timestamp",
+        config=ParallelConfig(chunk_size=10, max_workers=2, timeout=60),
+        shared_state=FakeSharedCounter(0),
+    )
+
+    assert set(failed_dates) == {"2024-01-01", "2024-01-02"}
+    assert results["2024-01-01"].status == OperationStatus.FAILED
+    assert results["2024-01-02"].status == OperationStatus.FAILED
+    assert (
+        mock_as_completed.call_args is not None
+        and mock_as_completed.call_args.kwargs.get("timeout") is not None
+    )
+
+
 @patch(
     "services.repartition_service.parallel_processing.repartition_data_for_partition_date",
 )
@@ -155,7 +190,9 @@ def test_recover_failed_chunks_retries(mock_repartition):
     ]
 
     results = recover_failed_chunks(
-        ["2024-01-01"], service="test_service", new_service_partition_key="preprocessing_timestamp"
+        ["2024-01-01"],
+        service="test_service",
+        new_service_partition_key="preprocessing_timestamp",
     )
 
     assert mock_repartition.call_count >= 2
