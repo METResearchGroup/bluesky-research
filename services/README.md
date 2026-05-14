@@ -148,7 +148,7 @@ flowchart TD
 
 | Orchestration task | Role |
 | --- | --- |
-| `compact_all_services` | Compacts partitioned datasets across configured services — **`services/compact_all_services/`**. |
+| `compact_all_services` | Compacts partitioned datasets across configured services — **[`local_compaction.py`](compact_all_services/local_compaction.py)**. |
 | `snapshot_data` | Copies designated active trees into cache/backup locations — **`services/snapshot_data/`**. |
 
 **Example flow**

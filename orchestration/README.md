@@ -156,8 +156,8 @@ Single task that handles the complete feed generation workflow.
    - **Pipeline**: `pipelines/compact_all_services/`
    - **Handler**: `pipelines/compact_all_services/handler.py`
    - **Trigger**: `pipelines/compact_all_services/submit_job.sh`
-   - **Service**: `services/compact_all_services/` - Data compaction across all services
-   - **Purpose**: Consolidates data files from multiple services into efficient formats, handles deduplication, and moves data from "active" to "cache" directories
+   - **Service**: `services/compact_all_services/local_compaction.py` (scheduled handler: `pipelines/compact_all_services/handler.py`)
+   - **Purpose**: Rewrites local partitioned datasets per service (export + prune old files). Optional S3/Athena paths exist under `s3_compaction.py` / `migration.py` for manual use.
 
 2. **Snapshot Data** (`snapshot_data()`)
    - **Pipeline**: `pipelines/snapshot_data/`

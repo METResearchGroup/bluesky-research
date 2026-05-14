@@ -4,7 +4,7 @@ import os
 from datetime import datetime, timezone, timedelta
 
 from lib.db.service_constants import MAP_SERVICE_TO_METADATA
-from services.compact_all_services.helper import delete_empty_folders
+from services.compact_all_services.cleanup import delete_empty_folders
 
 
 def get_file_creation_time(filepath):

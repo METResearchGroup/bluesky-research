@@ -77,6 +77,7 @@ jobs:
           pipelines/backfill_records_coordination/tests \
           scripts/migrate_research_data_to_s3/tests \
           services/aggregate_study_user_activities/tests \
+          services/compact_all_services/tests \
           services/backfill/pds_backfills/core/tests \
           services/backfill/pds_backfills/storage/tests \
           services/ml_inference/tests \
