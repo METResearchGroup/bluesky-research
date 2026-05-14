@@ -1,4 +1,4 @@
-"""Pure helpers for assembling study user activity DataFrames (no I/O)."""
+"""Helper functions for assembling study user activity DataFrames (no I/O)."""
 
 from __future__ import annotations
 
@@ -23,10 +23,10 @@ def json_object_per_row(df: pd.DataFrame, columns: Sequence[str]) -> pd.Series:
         obj: dict[str, Any] = {}
         for col in columns:
             val = row[col]
-            obj[col] = None if pd.isna(val) else val
+            obj[col] = None if pd.isna(val) else val  # type: ignore
         return json.dumps(obj)
 
-    return df.apply(row_to_json, axis=1)
+    return df.apply(row_to_json, axis=1)  # type: ignore
 
 
 def finalize_activity_df(

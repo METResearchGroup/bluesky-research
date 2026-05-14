@@ -134,7 +134,7 @@ def aggregate_latest_user_likes(partition_date: str) -> pd.DataFrame:
     return finalize_activity_df(
         df,
         df["author"],
-        df["author"].map(map_author_did_to_author_handle),
+        df["author"].map(map_author_did_to_author_handle),  # type: ignore
         "like",
         df["record"],
         df["synctimestamp"],
@@ -162,7 +162,7 @@ def aggregate_latest_user_follows(partition_date: str) -> pd.DataFrame:
     return finalize_activity_df(
         df,
         author_did,
-        author_did.map(map_author_did_to_author_handle),
+        author_did.map(map_author_did_to_author_handle),  # type: ignore
         "follow",
         json_object_per_row(df, FOLLOW_ACTIVITY_JSON_COLUMNS),
         df["insert_timestamp"],
@@ -170,6 +170,9 @@ def aggregate_latest_user_follows(partition_date: str) -> pd.DataFrame:
     )
 
 
+# NOTE: we changed MAP_SERVICE_TO_METADATA to remove the "study_user_activity"
+# key so this function (and anything referencing MAP_SERVICE_TO_METADATA["study_user_activity"])
+# is currently deprecated.
 def aggregate_latest_user_posts(partition_date: str) -> pd.DataFrame:
     """Collects the latest user posts for the given partition date."""
     df = _load_parquet_for_partition(
@@ -188,7 +191,7 @@ def aggregate_latest_user_posts(partition_date: str) -> pd.DataFrame:
     return finalize_activity_df(
         df,
         df["author_did"],
-        df["author_did"].map(map_author_did_to_author_handle),
+        df["author_did"].map(map_author_did_to_author_handle),  # type: ignore
         "post",
         json_object_per_row(df, POST_ACTIVITY_JSON_COLUMNS),
         df["synctimestamp"],
@@ -216,7 +219,7 @@ def aggregate_latest_user_likes_on_user_posts(partition_date: str) -> pd.DataFra
     return finalize_activity_df(
         df,
         df["author"],
-        df["author"].map(map_author_did_to_author_handle),
+        df["author"].map(map_author_did_to_author_handle),  # type: ignore
         "like_on_user_post",
         df["record"],
         df["synctimestamp"],
@@ -267,7 +270,7 @@ def aggregate_latest_user_session_logs(partition_date: str) -> pd.DataFrame:
     return finalize_activity_df(
         df,
         df["user_did"],
-        df["user_did"].map(map_author_did_to_author_handle),
+        df["user_did"].map(map_author_did_to_author_handle),  # type: ignore
         "user_session_log",
         data,
         df["timestamp"],
