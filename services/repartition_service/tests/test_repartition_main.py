@@ -118,4 +118,25 @@ class TestRepartitionService(unittest.TestCase):
                 "using partition key 'preprocessing_timestamp', excluding dates: ['2024-10-08']"
             ),
             call("Finished repartitioning test_service data."),
-        ]) 
+        ])
+
+
+@pytest.mark.parametrize("use_parallel", (False, True))
+@patch(
+    "services.repartition_service.parallel_processing.repartition_data_for_partition_dates_parallel"
+)
+@patch("services.repartition_service.helper.get_partition_dates", return_value=[])
+def test_main_runs_helper_without_kw_mismatch(
+    mock_get_dates, mock_parallel_bulk, use_parallel
+):
+    """End-to-end from main → helper respects use_parallel without TypeError."""
+    mock_parallel_bulk.return_value = {}
+    payload = {"service": "test_service", "use_parallel": use_parallel}
+    repartition_service(payload)
+
+    if use_parallel:
+        mock_parallel_bulk.assert_called_once()
+        mock_get_dates.assert_not_called()
+    else:
+        mock_parallel_bulk.assert_not_called()
+        mock_get_dates.assert_called_once() 

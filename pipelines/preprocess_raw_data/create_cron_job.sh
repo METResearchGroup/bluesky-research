@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # This bash script creates a cron job that runs sbatch submit_job.sh every 4 hours.
 
 # Get the current directory
