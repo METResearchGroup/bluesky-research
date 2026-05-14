@@ -8,7 +8,8 @@ import os
 import pandas as pd
 
 from lib.aws.athena import Athena
-from lib.constants import current_datetime, current_datetime_str
+from lib.constants import current_datetime, current_datetime_str, partition_date_format
+from lib.datetime_utils import get_partition_dates
 from lib.db.manage_local_data import export_data_to_local_storage
 from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from lib.log.logger import get_logger
@@ -25,17 +26,13 @@ map_author_did_to_author_handle = {
     user.bluesky_user_did: user.bluesky_handle for user in users
 }
 
-cols_to_keep = ["author_did", "author_handle", "data_type", "data", "activity_timestamp"]
-
-
-def generate_partition_dates(lookback_days: int = default_lookback_days) -> list[str]:
-    """Generates the partition dates for the given lookback days."""
-    partition_dates = []
-    # exclude current day
-    for i in range(1, lookback_days + 1):
-        partition_date = (current_datetime - timedelta(days=i)).strftime("%Y-%m-%d")
-        partition_dates.append(partition_date)
-    return partition_dates
+cols_to_keep = [
+    "author_did",
+    "author_handle",
+    "data_type",
+    "data",
+    "activity_timestamp",
+]
 
 
 def get_valid_partition_date_directory(local_prefix: str, partition_date: str) -> str:
@@ -56,11 +53,9 @@ def get_valid_partition_date_directory(local_prefix: str, partition_date: str) -
     elif os.path.exists(expected_cache_directory):
         valid_directory = expected_cache_directory
     else:
-        # raise ValueError(
-        #     f"No valid partition date directory found for partition date: {partition_date}"
-        # )
-        return None
-
+        raise ValueError(
+            f"No valid partition date directory found for partition date: {partition_date}"
+        )
     return valid_directory
 
 
@@ -81,9 +76,7 @@ def aggregate_latest_user_likes(partition_date: str) -> pd.DataFrame:
 
     df: pd.DataFrame = pd.read_parquet(valid_directory)
     if len(df) == 0:
-        logger.warning(
-            f"No likes found for partition date: {partition_date}"
-        )
+        logger.warning(f"No likes found for partition date: {partition_date}")
         df = pd.DataFrame(columns=cols_to_keep)
 
     dtypes_map = MAP_SERVICE_TO_METADATA["study_user_likes"]["dtypes_map"]
@@ -92,12 +85,12 @@ def aggregate_latest_user_likes(partition_date: str) -> pd.DataFrame:
     df = df.astype(dtypes_map)
 
     df["author_did"] = df["author"]
-    df["author_handle"] = df["author"].map(map_author_did_to_author_handle)
+    df["author_handle"] = df["author"].map(map_author_did_to_author_handle)  # type: ignore
     df["data_type"] = "like"
     df["data"] = df["record"]
     df["activity_timestamp"] = df["synctimestamp"]
 
-    df = df[cols_to_keep]
+    df = df[cols_to_keep]  # type: ignore
     return df
 
 
@@ -119,9 +112,7 @@ def aggregate_latest_user_follows(partition_date: str) -> pd.DataFrame:
 
     df: pd.DataFrame = pd.read_parquet(valid_directory)
     if len(df) == 0:
-        logger.warning(
-            f"No user follows found for partition date: {partition_date}"
-        )
+        logger.warning(f"No user follows found for partition date: {partition_date}")
         df = pd.DataFrame(columns=cols_to_keep)
 
     # making a note to convert the dtypes here to make sure that there's no
@@ -137,7 +128,7 @@ def aggregate_latest_user_follows(partition_date: str) -> pd.DataFrame:
         else row["follower_did"],
         axis=1,
     )
-    df["author_handle"] = df["author_did"].map(map_author_did_to_author_handle)
+    df["author_handle"] = df["author_did"].map(map_author_did_to_author_handle)  # type: ignore
     df["data_type"] = "follow"
     df["data"] = df.apply(
         lambda row: json.dumps(
@@ -167,7 +158,7 @@ def aggregate_latest_user_follows(partition_date: str) -> pd.DataFrame:
     )
     df["activity_timestamp"] = df["insert_timestamp"]
 
-    df = df[cols_to_keep]
+    df = df[cols_to_keep]  # type: ignore
     return df
 
 
@@ -187,9 +178,7 @@ def aggregate_latest_user_posts(partition_date: str) -> pd.DataFrame:
 
     df: pd.DataFrame = pd.read_parquet(valid_directory)
     if len(df) == 0:
-        logger.warning(
-            f"No user posts found for partition date: {partition_date}"
-        )
+        logger.warning(f"No user posts found for partition date: {partition_date}")
         df = pd.DataFrame(columns=cols_to_keep)
 
     # making a note to convert the dtypes here to make sure that there's no
@@ -200,39 +189,59 @@ def aggregate_latest_user_posts(partition_date: str) -> pd.DataFrame:
     df = df.astype(dtypes_map)
 
     df["author_did"] = df["author_did"]
-    df["author_handle"] = df["author_did"].map(map_author_did_to_author_handle)
+    df["author_handle"] = df["author_did"].map(map_author_did_to_author_handle)  # type: ignore
     df["data_type"] = "post"
     df["data"] = df.apply(
         lambda row: json.dumps(
             {
                 "uri": row["uri"] if pd.notna(row["uri"]) else None,
                 "cid": row["cid"] if pd.notna(row["cid"]) else None,
-                "indexed_at": row["indexed_at"] if pd.notna(row["indexed_at"]) else None,
-                "author_did": row["author_did"] if pd.notna(row["author_did"]) else None,
-                "author_handle": row["author_handle"] if pd.notna(row["author_handle"]) else None,
-                "created_at": row["created_at"] if pd.notna(row["created_at"]) else None,
+                "indexed_at": row["indexed_at"]
+                if pd.notna(row["indexed_at"])
+                else None,
+                "author_did": row["author_did"]
+                if pd.notna(row["author_did"])
+                else None,
+                "author_handle": row["author_handle"]
+                if pd.notna(row["author_handle"])
+                else None,
+                "created_at": row["created_at"]
+                if pd.notna(row["created_at"])
+                else None,
                 "text": row["text"] if pd.notna(row["text"]) else None,
                 "embed": row["embed"] if pd.notna(row["embed"]) else None,
                 "entities": row["entities"] if pd.notna(row["entities"]) else None,
                 "facets": row["facets"] if pd.notna(row["facets"]) else None,
                 "labels": row["labels"] if pd.notna(row["labels"]) else None,
                 "langs": row["langs"] if pd.notna(row["langs"]) else None,
-                "reply_parent": row["reply_parent"] if pd.notna(row["reply_parent"]) else None,
-                "reply_root": row["reply_root"] if pd.notna(row["reply_root"]) else None,
+                "reply_parent": row["reply_parent"]
+                if pd.notna(row["reply_parent"])
+                else None,
+                "reply_root": row["reply_root"]
+                if pd.notna(row["reply_root"])
+                else None,
                 "tags": row["tags"] if pd.notna(row["tags"]) else None,
-                "synctimestamp": row["synctimestamp"] if pd.notna(row["synctimestamp"]) else None,
+                "synctimestamp": row["synctimestamp"]
+                if pd.notna(row["synctimestamp"])
+                else None,
                 "url": row["url"] if pd.notna(row["url"]) else None,
                 "source": row["source"] if pd.notna(row["source"]) else None,
-                "like_count": row["like_count"] if pd.notna(row["like_count"]) else None,
-                "reply_count": row["reply_count"] if pd.notna(row["reply_count"]) else None,
-                "repost_count": row["repost_count"] if pd.notna(row["repost_count"]) else None,
+                "like_count": row["like_count"]
+                if pd.notna(row["like_count"])
+                else None,
+                "reply_count": row["reply_count"]
+                if pd.notna(row["reply_count"])
+                else None,
+                "repost_count": row["repost_count"]
+                if pd.notna(row["repost_count"])
+                else None,
             }
         ),
         axis=1,
     )
     df["activity_timestamp"] = df["synctimestamp"]
 
-    df = df[cols_to_keep]
+    df = df[cols_to_keep]  # type: ignore
     return df
 
 
@@ -258,7 +267,7 @@ def aggregate_latest_user_likes_on_user_posts(partition_date: str) -> pd.DataFra
             f"No likes on user posts found for partition date: {partition_date}"
         )
         df = pd.DataFrame(columns=cols_to_keep)
-    
+
     # making a note to convert the dtypes here to make sure that there's no
     # implicit string -> complex dtype conversion happening
     dtypes_map = MAP_SERVICE_TO_METADATA["study_user_like_on_user_post"]["dtypes_map"]
@@ -267,12 +276,12 @@ def aggregate_latest_user_likes_on_user_posts(partition_date: str) -> pd.DataFra
     df = df.astype(dtypes_map)
 
     df["author_did"] = df["author"]
-    df["author_handle"] = df["author"].map(map_author_did_to_author_handle)
+    df["author_handle"] = df["author"].map(map_author_did_to_author_handle)  # type: ignore
     df["data_type"] = "like_on_user_post"
     df["data"] = df["record"]
     df["activity_timestamp"] = df["synctimestamp"]
 
-    df = df[cols_to_keep]
+    df = df[cols_to_keep]  # type: ignore
     return df
 
 
@@ -311,11 +320,11 @@ def aggregate_latest_user_reply_to_user_posts(partition_date: str) -> pd.DataFra
     df["data"] = ""
     df["activity_timestamp"] = ""
 
-    df = df[cols_to_keep]
+    df = df[cols_to_keep]  # type: ignore
     return df
 
 
-def aggregate_latest_user_session_logs(partition_date: str) -> None:
+def aggregate_latest_user_session_logs(partition_date: str) -> pd.DataFrame:
     """Exports the latest user session logs for the given partition date."""
     query = f"SELECT * FROM user_session_logs WHERE partition_date = '{partition_date}'"
     df: pd.DataFrame = athena.query_results_as_df(query)
@@ -327,7 +336,7 @@ def aggregate_latest_user_session_logs(partition_date: str) -> None:
         df = pd.DataFrame(columns=cols_to_keep)
 
     df["author_did"] = df["user_did"]
-    df["author_handle"] = df["user_did"].map(map_author_did_to_author_handle)
+    df["author_handle"] = df["user_did"].map(map_author_did_to_author_handle)  # type: ignore
     df["data_type"] = "user_session_log"
     # NOTE: is this going to be too much all at once? Unsure, should be OK.
     # looks to be ~6MB for 2700 rows. For creating a "one big table" for
@@ -337,15 +346,17 @@ def aggregate_latest_user_session_logs(partition_date: str) -> None:
             {
                 "cursor": row["cursor"] if pd.notna(row["cursor"]) else None,
                 "limit": row["limit"] if pd.notna(row["limit"]) else None,
-                "feed_length": row["feed_length"] if pd.notna(row["feed_length"]) else None,
+                "feed_length": row["feed_length"]
+                if pd.notna(row["feed_length"])
+                else None,
                 "feed": row["feed"] if pd.notna(row["feed"]) else None,
             }
         ),
-        axis=1
+        axis=1,
     )
     df["activity_timestamp"] = df["timestamp"]
 
-    df = df[cols_to_keep]
+    df = df[cols_to_keep]  # type: ignore
     return df
 
 
@@ -354,10 +365,12 @@ def aggregate_latest_user_activities(partition_date: str) -> pd.DataFrame:
     latest_user_likes: pd.DataFrame = aggregate_latest_user_likes(partition_date)
     latest_user_follows: pd.DataFrame = aggregate_latest_user_follows(partition_date)
     latest_user_posts: pd.DataFrame = aggregate_latest_user_posts(partition_date)
-    latest_user_likes_on_user_posts: pd.DataFrame = aggregate_latest_user_likes_on_user_posts(
+    latest_user_likes_on_user_posts: pd.DataFrame = (
+        aggregate_latest_user_likes_on_user_posts(partition_date)
+    )
+    latest_user_session_logs: pd.DataFrame = aggregate_latest_user_session_logs(
         partition_date
     )
-    latest_user_session_logs: pd.DataFrame = aggregate_latest_user_session_logs(partition_date)
     # latest_user_reply_to_user_posts = aggregate_latest_user_reply_to_user_posts(
     #     partition_date
     # )
@@ -400,16 +413,24 @@ def export_latest_user_activities(
 
 def main():
     lookback_days = default_lookback_days
-    partition_dates: list[str] = generate_partition_dates(
-        lookback_days=lookback_days
+    end_date = (current_datetime - timedelta(days=1)).strftime(partition_date_format)
+    start_date = (current_datetime - timedelta(days=lookback_days)).strftime(
+        partition_date_format
     )
+    partition_dates: list[str] = get_partition_dates(
+        start_date=start_date,
+        end_date=end_date,
+        exclude_partition_dates=[],
+    )[::-1]
     logger.info(f"Aggregating all user activities from dates: {partition_dates}")
     for partition_date in partition_dates:
         logger.info("*" * 10)
         logger.info(
             f"Aggregating latest user activities for partition date: {partition_date}"
         )
-        latest_activities_df: pd.DataFrame = aggregate_latest_user_activities(partition_date)
+        latest_activities_df: pd.DataFrame = aggregate_latest_user_activities(
+            partition_date
+        )
         logger.info(
             f"Finished aggregating latest user activities for partition date: {partition_date}. Exporting..."
         )
