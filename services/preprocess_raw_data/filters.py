@@ -1,10 +1,19 @@
 """Performs filtering steps."""
 
-from typing import Any, cast
+from typing import TypedDict, cast
 
 import pandas as pd
 
-from lib.helper import track_performance
+try:
+    from lib.helper import track_performance
+except ModuleNotFoundError:  # pragma: no cover - local lightweight fallback
+
+    def track_performance(func=None, *args, **kwargs):
+        if func is None:
+            return lambda inner: inner
+        return func
+
+
 from lib.datetime_utils import generate_current_datetime_str
 from lib.log.logger import Logger
 from services.preprocess_raw_data.classify_language.helper import filter_text_is_english  # noqa
@@ -15,6 +24,28 @@ from services.preprocess_raw_data.classify_nsfw_content.helper import (
 from services.preprocess_raw_data.classify_spam.helper import filter_posts_have_spam  # noqa
 
 logger = Logger(__name__)
+
+
+class CustomArgs(TypedDict, total=False):
+    new_timestamp_field: str
+
+
+class FailedBreakdown(TypedDict):
+    is_english: int
+    post_is_nsfw: int
+    author_is_nsfw: int
+    is_spam: int
+
+
+class FilteredPostsMetadata(TypedDict):
+    passed: int
+    failed_total: int
+    failed_breakdown: FailedBreakdown
+
+
+class PreprocessMetadata(TypedDict):
+    num_posts: int
+    num_records_after_filtering: dict[str, FilteredPostsMetadata]
 
 
 def _stage_remove_posts_without_text(posts: pd.DataFrame) -> tuple[pd.DataFrame, int]:
@@ -76,12 +107,10 @@ def _stage_add_filter_decision(posts: pd.DataFrame) -> pd.DataFrame:
     return posts_with_decisions
 
 
-def _stage_add_timestamps(
-    posts: pd.DataFrame, custom_args: dict[str, Any]
-) -> pd.DataFrame:
+def _stage_add_timestamps(posts: pd.DataFrame, custom_args: CustomArgs) -> pd.DataFrame:
     """Add preprocessing and filtered timestamps."""
     posts_with_timestamps = posts
-    if custom_args:
+    if "new_timestamp_field" in custom_args:
         timestamp_field = custom_args["new_timestamp_field"]
         posts_with_timestamps["preprocessing_timestamp"] = posts_with_timestamps[
             timestamp_field
@@ -125,7 +154,7 @@ def _emit_filtering_logs(
 
 def _build_updated_posts_metadata(
     posts: pd.DataFrame, num_english_posts: int, filter_to_count_map: dict[str, int]
-) -> dict[str, Any]:
+) -> PreprocessMetadata:
     """Build metadata payload expected by upstream callers."""
     return {
         "num_posts": len(posts),
@@ -151,8 +180,8 @@ def _drop_internal_columns(posts: pd.DataFrame) -> pd.DataFrame:
 
 @track_performance
 def filter_posts(
-    posts: pd.DataFrame, custom_args: dict[str, Any]
-) -> tuple[pd.DataFrame, dict[str, Any]]:
+    posts: pd.DataFrame, custom_args: CustomArgs
+) -> tuple[pd.DataFrame, PreprocessMetadata]:
     """Applies the filtering steps."""  # noqa
     num_total_posts = len(posts)
     posts, num_posts_without_text = _stage_remove_posts_without_text(posts)

@@ -258,26 +258,22 @@ def score_post_likeability(post: pd.Series, feed_config: FeedConfig) -> float:
         default_expected_like_count
     )
 
-    try:
-        # Step 1: If we empirically have a like count, use it.
-        like_count = _get_like_count_value(post)
-        if like_count is not None:
-            return _calculate_score_based_on_like_count(like_count)
+    # Step 1: If we empirically have a like count, use it.
+    like_count = _get_like_count_value(post)
+    if like_count is not None:
+        return _calculate_score_based_on_like_count(like_count)
 
-        # Step 2: If we don't have a like count, use the similarity score.
-        similarity_score = _get_similarity_score_value(post)
-        if similarity_score is not None:
-            expected_like_count = (
-                feed_config.average_popular_post_like_count * similarity_score
-            )
-            return _calculate_score_based_on_like_count(expected_like_count)
+    # Step 2: If we don't have a like count, use the similarity score.
+    similarity_score = _get_similarity_score_value(post)
+    if similarity_score is not None:
+        expected_like_count = (
+            feed_config.average_popular_post_like_count * similarity_score
+        )
+        return _calculate_score_based_on_like_count(expected_like_count)
 
-        # Step 3: If we don't have a like count or similarity score,
-        # use the default like score calculation.
-        return default_expected_like_score
-    except Exception as e:
-        logger.error(f"Error calculating like score for post {post['uri']}: {e}")
-        return default_expected_like_score
+    # Step 3: If we don't have a like count or similarity score,
+    # use the default like score calculation.
+    return default_expected_like_score
 
 
 def calculate_post_score(
@@ -293,43 +289,39 @@ def calculate_post_score(
     - Freshness score: adds to the engagement and treatment scores.
     - Treatment score: multiplies the treatment score by the treatment algorithm score.
     """
-    try:
-        engagement_score: float = 0
-        treatment_score: float = 0
+    engagement_score: float = 0
+    treatment_score: float = 0
 
-        # set the base score to be based on the likeability of the post
-        # and the freshness of the post.
-        post_likeability_score: float = score_post_likeability(
-            post=post, feed_config=feed_config
-        )
-        post_freshness_score: float = score_post_freshness(
-            post=post, feed_config=feed_config
-        )
+    # set the base score to be based on the likeability of the post
+    # and the freshness of the post.
+    post_likeability_score: float = score_post_likeability(
+        post=post, feed_config=feed_config
+    )
+    post_freshness_score: float = score_post_freshness(
+        post=post, feed_config=feed_config
+    )
 
-        engagement_score += post_likeability_score
-        engagement_score += post_freshness_score
-        treatment_score += post_likeability_score
-        treatment_score += post_freshness_score
+    engagement_score += post_likeability_score
+    engagement_score += post_freshness_score
+    treatment_score += post_likeability_score
+    treatment_score += post_freshness_score
 
-        # the treatment algorithm score is treated as a multiplier.
-        treatment_algorithm_score: float = score_treatment_algorithm(
-            post=post,
-            superposter_dids=superposter_dids,
-            feed_config=feed_config,
-        )
+    # the treatment algorithm score is treated as a multiplier.
+    treatment_algorithm_score: float = score_treatment_algorithm(
+        post=post,
+        superposter_dids=superposter_dids,
+        feed_config=feed_config,
+    )
 
-        # multiply scores by the engagement/treatment coefs.
-        engagement_score *= feed_config.engagement_coef
-        treatment_score *= treatment_algorithm_score
+    # multiply scores by the engagement/treatment coefs.
+    engagement_score *= feed_config.engagement_coef
+    treatment_score *= treatment_algorithm_score
 
-        return PostScoreByAlgorithm(
-            uri=str(post["uri"]),
-            engagement_score=engagement_score,
-            treatment_score=treatment_score,
-        )
-    except Exception as e:
-        logger.error(f"Error calculating post score for post {post['uri']}: {e}")
-        raise e
+    return PostScoreByAlgorithm(
+        uri=str(post["uri"]),
+        engagement_score=engagement_score,
+        treatment_score=treatment_score,
+    )
 
 
 class ScoringService:

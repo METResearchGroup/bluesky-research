@@ -3,17 +3,28 @@
 import json
 from typing import Optional
 
-from boto3.dynamodb.types import TypeSerializer
 import pandas as pd
 
-from lib.aws.athena import Athena, DEFAULT_DB_NAME
-from lib.aws.dynamodb import DynamoDB
-from lib.aws.s3 import S3
+try:
+    from lib.aws.athena import DEFAULT_DB_NAME
+except ModuleNotFoundError:  # pragma: no cover - local lightweight fallback
+    DEFAULT_DB_NAME = "default"
 from lib.constants import current_datetime, current_datetime_str  # noqa
 from lib.datetime_utils import calculate_lookback_datetime_str
 from lib.db.manage_local_data import load_latest_data, export_data_to_local_storage
 from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from lib.datetime_utils import generate_current_datetime_str
+
+try:
+    from lib.helper import track_performance
+except ModuleNotFoundError:  # pragma: no cover - local lightweight fallback
+
+    def track_performance(func=None, *args, **kwargs):
+        if func is None:
+            return lambda inner: inner
+        return func
+
+
 from lib.log.logger import get_logger
 from services.calculate_superposters.models import (
     SuperposterModel,
@@ -24,20 +35,34 @@ DB_NAME = DEFAULT_DB_NAME
 DAILY_POSTS_GLUE_TABLE_NAME = "daily_posts"
 athena_table_name = "daily_superposters"
 dynamodb_table_name = "superposter_calculation_sessions"
-
-athena = Athena()
-dynamodb = DynamoDB()
-s3 = S3()
-s3_root_key = "daily_superposters"
 logger = get_logger(__name__)
 
-serializer = TypeSerializer()
+_athena = None
+_dynamodb = None
+
+
+def _get_athena():
+    global _athena
+    if _athena is None:
+        from lib.aws.athena import Athena
+
+        _athena = Athena()
+    return _athena
+
+
+def _get_dynamodb():
+    global _dynamodb
+    if _dynamodb is None:
+        from lib.aws.dynamodb import DynamoDB
+
+        _dynamodb = DynamoDB()
+    return _dynamodb
 
 
 def insert_superposter_session(superposter_calculation_session: dict):
     """Insert superposter session."""
     try:
-        dynamodb.insert_item_into_table(
+        _get_dynamodb().insert_item_into_table(
             item=superposter_calculation_session, table_name=dynamodb_table_name
         )
         logger.info(
@@ -71,43 +96,21 @@ def calculate_latest_superposters(
         logger.info("No posts to calculate superposters for.")
         return
     if top_n_percent is not None:
-        query = f"""
-        WITH ranked_users AS (
-            SELECT author_did, COUNT(*) as count,
-                ROW_NUMBER() OVER (ORDER BY COUNT(*) DESC) as row_num, # returns row number for the resulting grouped output
-                COUNT(*) OVER () as total_count # calculates the total number of distinct author_did values.
-            FROM preprocessed_posts
-            GROUP BY author_did
-        )
-        SELECT author_did, count
-        FROM ranked_users
-        WHERE synctimestamp >= '{lookback_datetime_str}'
-        AND row_num <= total_count * {top_n_percent}
-        ORDER BY count DESC
-        """  # noqa
-        ranked_users = posts_df.groupby("author_did").size().reset_index(name="count")  # type: ignore
+        filtered_posts_df = posts_df[posts_df["synctimestamp"] >= lookback_datetime_str]
+        ranked_users = (
+            filtered_posts_df.groupby("author_did").size().reset_index(name="count")
+        )  # type: ignore
         ranked_users["row_num"] = ranked_users["count"].rank(
             method="first", ascending=False
         )
         total_count = ranked_users["count"].count()
         output_df = ranked_users[
-            (posts_df["synctimestamp"] >= lookback_datetime_str)
-            & (ranked_users["row_num"] <= total_count * top_n_percent)
+            ranked_users["row_num"] <= total_count * top_n_percent
         ].sort_values(by="count", ascending=False)[["author_did", "count"]]  # type: ignore
     elif threshold is not None:
-        query = f"""
-        SELECT author_did, COUNT(*) as count
-        FROM preprocessed_posts
-        WHERE synctimestamp >= '{lookback_datetime_str}'
-        GROUP BY author_did
-        HAVING COUNT(*) >= {threshold}
-        ORDER BY count DESC
-        """
+        filtered_posts_df = posts_df[posts_df["synctimestamp"] >= lookback_datetime_str]
         output_df = (
-            posts_df[posts_df["synctimestamp"] >= lookback_datetime_str]
-            .groupby("author_did")
-            .size()
-            .reset_index(name="count")
+            filtered_posts_df.groupby("author_did").size().reset_index(name="count")
         )  # type: ignore
         output_df = output_df[output_df["count"] >= threshold].sort_values(
             by="count", ascending=False
@@ -116,7 +119,31 @@ def calculate_latest_superposters(
         raise ValueError("Either percentile or threshold must be provided.")
 
     if use_athena:
-        superposters_df = athena.query_results_as_df(query)
+        if top_n_percent is not None:
+            query = f"""
+            WITH ranked_users AS (
+                SELECT author_did, COUNT(*) as count,
+                    ROW_NUMBER() OVER (ORDER BY COUNT(*) DESC) as row_num,
+                    COUNT(*) OVER () as total_count
+                FROM preprocessed_posts
+                WHERE synctimestamp >= '{lookback_datetime_str}'
+                GROUP BY author_did
+            )
+            SELECT author_did, count
+            FROM ranked_users
+            WHERE row_num <= total_count * {top_n_percent}
+            ORDER BY count DESC
+            """  # noqa
+        else:
+            query = f"""
+            SELECT author_did, COUNT(*) as count
+            FROM preprocessed_posts
+            WHERE synctimestamp >= '{lookback_datetime_str}'
+            GROUP BY author_did
+            HAVING COUNT(*) >= {threshold}
+            ORDER BY count DESC
+            """
+        superposters_df = _get_athena().query_results_as_df(query)
         logger.info(f"Fetched {len(superposters_df)} superposters from Athena.")
     else:
         logger.info("Using local data to calculate superposters.")

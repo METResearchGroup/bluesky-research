@@ -1,14 +1,26 @@
 """Helper functions for the consolidate_enrichment_integrations service."""
 
+# ruff: noqa: E402
+
 from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 
-from lib.aws.dynamodb import DynamoDB
+_dynamodb = None
 from lib.constants import timestamp_format
 from lib.db.manage_local_data import export_data_to_local_storage
 from lib.db.service_constants import MAP_SERVICE_TO_METADATA
-from lib.helper import track_performance
+
+try:
+    from lib.helper import track_performance
+except ModuleNotFoundError:  # pragma: no cover - local lightweight fallback
+
+    def track_performance(func=None, *args, **kwargs):
+        if func is None:
+            return lambda inner: inner
+        return func
+
+
 from lib.datetime_utils import generate_current_datetime_str
 from lib.log.logger import get_logger
 from services.consolidate_enrichment_integrations.loaders import (
@@ -31,15 +43,110 @@ from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
 
 logger = get_logger(__name__)
 
-dynamodb = DynamoDB()
-
 dynamodb_table_name = "enrichment_consolidation_sessions"
+
+
+def _get_dynamodb():
+    global _dynamodb
+    if _dynamodb is None:
+        from lib.aws.dynamodb import DynamoDB
+
+        _dynamodb = DynamoDB()
+    return _dynamodb
+
+
+def _build_consolidated_post(
+    *,
+    preprocessed: FilteredPreprocessedPostModel,
+    perspective: PerspectiveApiLabelsModel | None,
+    sociopolitical: SociopoliticalLabelsModel | None,
+    similarity: PostSimilarityScoreModel | None,
+) -> ConsolidatedEnrichedPostModel:
+    return ConsolidatedEnrichedPostModel(
+        uri=preprocessed.uri,
+        cid=preprocessed.cid,
+        indexed_at=preprocessed.indexed_at,
+        author_did=preprocessed.author_did,
+        author_handle=preprocessed.author_handle,
+        author_avatar=preprocessed.author_avatar,
+        author_display_name=preprocessed.author_display_name,
+        created_at=preprocessed.created_at,
+        text=preprocessed.text,
+        embed=preprocessed.embed,
+        entities=preprocessed.entities,
+        facets=preprocessed.facets,
+        labels=preprocessed.labels,
+        langs=preprocessed.langs,
+        reply_parent=preprocessed.reply_parent,
+        reply_root=preprocessed.reply_root,
+        tags=preprocessed.tags,
+        synctimestamp=preprocessed.synctimestamp,
+        url=preprocessed.url,
+        source=preprocessed.source,  # type: ignore
+        like_count=preprocessed.like_count,
+        reply_count=preprocessed.reply_count,
+        repost_count=preprocessed.repost_count,
+        passed_filters=preprocessed.passed_filters,
+        filtered_at=preprocessed.filtered_at,
+        filtered_by_func=preprocessed.filtered_by_func,
+        preprocessing_timestamp=preprocessed.preprocessing_timestamp,
+        llm_model_name=(sociopolitical.llm_model_name if sociopolitical else None),
+        sociopolitical_was_successfully_labeled=(
+            sociopolitical.was_successfully_labeled if sociopolitical else False
+        ),
+        sociopolitical_reason=(sociopolitical.reason if sociopolitical else None),
+        sociopolitical_label_timestamp=(
+            sociopolitical.label_timestamp if sociopolitical else None
+        ),
+        is_sociopolitical=(
+            sociopolitical.is_sociopolitical if sociopolitical else False
+        ),
+        political_ideology_label=(
+            sociopolitical.political_ideology_label if sociopolitical else None
+        ),
+        perspective_was_successfully_labeled=(
+            perspective.was_successfully_labeled if perspective else False
+        ),
+        perspective_reason=(perspective.reason if perspective else None),
+        perspective_label_timestamp=(
+            perspective.label_timestamp if perspective else None
+        ),
+        prob_toxic=(perspective.prob_toxic if perspective else 0),
+        prob_severe_toxic=(perspective.prob_severe_toxic if perspective else 0),
+        prob_identity_attack=(perspective.prob_identity_attack if perspective else 0),
+        prob_insult=(perspective.prob_insult if perspective else 0),
+        prob_profanity=(perspective.prob_profanity if perspective else 0),
+        prob_threat=(perspective.prob_threat if perspective else 0),
+        prob_affinity=(perspective.prob_affinity if perspective else 0),
+        prob_compassion=(perspective.prob_compassion if perspective else 0),
+        prob_constructive=(perspective.prob_constructive if perspective else 0),
+        prob_curiosity=(perspective.prob_curiosity if perspective else 0),
+        prob_nuance=(perspective.prob_nuance if perspective else 0),
+        prob_personal_story=(perspective.prob_personal_story if perspective else 0),
+        prob_reasoning=(perspective.prob_reasoning if perspective else 0),
+        prob_respect=(perspective.prob_respect if perspective else 0),
+        prob_alienation=(perspective.prob_alienation if perspective else 0),
+        prob_fearmongering=(perspective.prob_fearmongering if perspective else 0),
+        prob_generalization=(perspective.prob_generalization if perspective else 0),
+        prob_moral_outrage=(perspective.prob_moral_outrage if perspective else 0),
+        prob_scapegoating=(perspective.prob_scapegoating if perspective else 0),
+        prob_sexually_explicit=(
+            perspective.prob_sexually_explicit if perspective else 0
+        ),
+        prob_flirtation=(perspective.prob_flirtation if perspective else 0),
+        prob_spam=(perspective.prob_spam if perspective else 0),
+        similarity_score=similarity.similarity_score if similarity else None,
+        most_liked_average_embedding_key=(
+            similarity.most_liked_average_embedding_key if similarity else None
+        ),
+        consolidation_timestamp=generate_current_datetime_str(),
+    )
 
 
 def get_latest_enrichment_consolidation_session() -> dict | None:
     """Get the latest enrichment consolidation session."""
     try:
-        sessions: list[dict] = dynamodb.get_all_items_from_table(
+        sessions: list[dict] = _get_dynamodb().get_all_items_from_table(
             table_name=dynamodb_table_name
         )  # noqa
         if not sessions:
@@ -59,7 +166,7 @@ def get_latest_enrichment_consolidation_session() -> dict | None:
 def insert_enrichment_consolidation_session(enrichment_consolidation_session: dict):  # noqa
     """Insert the enrichment consolidation session."""
     try:
-        dynamodb.insert_item_into_table(
+        _get_dynamodb().insert_item_into_table(
             item=enrichment_consolidation_session, table_name=dynamodb_table_name
         )
         logger.info(
@@ -109,96 +216,14 @@ def consolidate_enrichment_integrations(
         sociopolitical = sociopolitical_dict.get(uri, None)
         similarity = similarity_dict.get(uri, None)
 
-        consolidated_post = ConsolidatedEnrichedPostModel(
-            # Fields from FilteredPreprocessedPostModel
-            uri=preprocessed.uri,
-            cid=preprocessed.cid,
-            indexed_at=preprocessed.indexed_at,
-            author_did=preprocessed.author_did,
-            author_handle=preprocessed.author_handle,
-            author_avatar=preprocessed.author_avatar,
-            author_display_name=preprocessed.author_display_name,
-            created_at=preprocessed.created_at,
-            text=preprocessed.text,
-            embed=preprocessed.embed,
-            entities=preprocessed.entities,
-            facets=preprocessed.facets,
-            labels=preprocessed.labels,
-            langs=preprocessed.langs,
-            reply_parent=preprocessed.reply_parent,
-            reply_root=preprocessed.reply_root,
-            tags=preprocessed.tags,
-            synctimestamp=preprocessed.synctimestamp,
-            url=preprocessed.url,
-            source=preprocessed.source,  # type: ignore
-            like_count=preprocessed.like_count,
-            reply_count=preprocessed.reply_count,
-            repost_count=preprocessed.repost_count,
-            passed_filters=preprocessed.passed_filters,
-            filtered_at=preprocessed.filtered_at,
-            filtered_by_func=preprocessed.filtered_by_func,
-            preprocessing_timestamp=preprocessed.preprocessing_timestamp,
-            # Fields from SociopoliticalLabelsModel
-            llm_model_name=(sociopolitical.llm_model_name if sociopolitical else None),
-            sociopolitical_was_successfully_labeled=(
-                sociopolitical.was_successfully_labeled if sociopolitical else False
-            ),
-            sociopolitical_reason=(sociopolitical.reason if sociopolitical else None),
-            sociopolitical_label_timestamp=(
-                sociopolitical.label_timestamp if sociopolitical else None
-            ),
-            is_sociopolitical=(
-                sociopolitical.is_sociopolitical if sociopolitical else False
-            ),
-            political_ideology_label=(
-                sociopolitical.political_ideology_label if sociopolitical else None
-            ),
-            # Fields from PerspectiveApiLabelsModel
-            perspective_was_successfully_labeled=(
-                perspective.was_successfully_labeled if perspective else False
-            ),
-            perspective_reason=(perspective.reason if perspective else None),
-            perspective_label_timestamp=(
-                perspective.label_timestamp if perspective else None
-            ),
-            prob_toxic=(perspective.prob_toxic if perspective else 0),
-            prob_severe_toxic=(perspective.prob_severe_toxic if perspective else 0),
-            prob_identity_attack=(
-                perspective.prob_identity_attack if perspective else 0
-            ),
-            prob_insult=(perspective.prob_insult if perspective else 0),
-            prob_profanity=(perspective.prob_profanity if perspective else 0),
-            prob_threat=(perspective.prob_threat if perspective else 0),
-            prob_affinity=(perspective.prob_affinity if perspective else 0),
-            prob_compassion=(perspective.prob_compassion if perspective else 0),
-            prob_constructive=(perspective.prob_constructive if perspective else 0),
-            prob_curiosity=(perspective.prob_curiosity if perspective else 0),
-            prob_nuance=(perspective.prob_nuance if perspective else 0),
-            prob_personal_story=(perspective.prob_personal_story if perspective else 0),
-            prob_reasoning=(perspective.prob_reasoning if perspective else 0),
-            prob_respect=(perspective.prob_respect if perspective else 0),
-            prob_alienation=(perspective.prob_alienation if perspective else 0),
-            prob_fearmongering=(perspective.prob_fearmongering if perspective else 0),
-            prob_generalization=(perspective.prob_generalization if perspective else 0),
-            prob_moral_outrage=(perspective.prob_moral_outrage if perspective else 0),
-            prob_scapegoating=(perspective.prob_scapegoating if perspective else 0),
-            prob_sexually_explicit=(
-                perspective.prob_sexually_explicit if perspective else 0
-            ),
-            prob_flirtation=(perspective.prob_flirtation if perspective else 0),
-            prob_spam=(perspective.prob_spam if perspective else 0),
-            # Fields from similarity_scores_results
-            # (only the in-network posts will have similarity scores. The most-liked
-            # posts will not have similarity scores.)
-            similarity_score=similarity.similarity_score if similarity else None,
-            most_liked_average_embedding_key=similarity.most_liked_average_embedding_key
-            if similarity
-            else None,
-            # consolidation-specific logic
-            consolidation_timestamp=generate_current_datetime_str(),
+        consolidated_posts.append(
+            _build_consolidated_post(
+                preprocessed=preprocessed,
+                perspective=perspective,
+                sociopolitical=sociopolitical,
+                similarity=similarity,
+            )
         )
-
-        consolidated_posts.append(consolidated_post)
 
     total = len([post for post in consolidated_posts if post.source == "most_liked"])
     print(f"Total most-liked posts: {total}")
