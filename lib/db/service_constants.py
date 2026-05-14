@@ -541,6 +541,46 @@ MAP_SERVICE_TO_METADATA = {
             "partition_date": "string",
         },
     },
+    "study_user_activity": {
+        "local_prefix": os.path.join(root_local_data_directory, "study_user_activity"),
+        "s3_prefix": os.path.join("study_user_activity", "create", "post"),
+        "glue_table_name": "study_user_activity",
+        "primary_key": "uri",
+        "timestamp_field": "synctimestamp",
+        "skip_deduping": False,
+        "pydantic_model": "",
+        "subpaths": {
+            "post": os.path.join(
+                root_local_data_directory, "study_user_activity", "create", "post"
+            ),
+        },
+        "dtypes_map": {
+            "uri": "string",
+            "cid": "string",
+            "indexed_at": "string",
+            "author_did": "string",
+            "author_handle": "string",
+            "author_avatar": "string",
+            "author_display_name": "string",
+            "created_at": "string",
+            "text": "string",
+            "embed": "string",
+            "entities": "string",
+            "facets": "string",
+            "labels": "string",
+            "langs": "string",
+            "reply_parent": "string",
+            "reply_root": "string",
+            "tags": "string",
+            "synctimestamp": "string",
+            "url": "string",
+            "source": "string",
+            "like_count": "Int64",
+            "reply_count": "Int64",
+            "repost_count": "Int64",
+            "partition_date": "string",
+        },
+    },
     # each row is a unique relationship, so no deduping required.
     "scraped_user_social_network": {
         "local_prefix": os.path.join(
