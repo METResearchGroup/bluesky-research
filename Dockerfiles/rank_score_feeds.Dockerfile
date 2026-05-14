@@ -19,7 +19,6 @@ COPY services/calculate_superposters/helper.py ./services/calculate_superposters
 COPY services/calculate_superposters/models.py ./services/calculate_superposters/models.py
 COPY services/consolidate_enrichment_integrations/models.py ./services/consolidate_enrichment_integrations/models.py
 COPY services/participant_data/helper.py ./services/participant_data/helper.py
-COPY services/participant_data/mock_users.py ./services/participant_data/mock_users.py
 COPY services/participant_data/models.py ./services/participant_data/models.py
 COPY services/preprocess_raw_data/classify_language/model.py ./services/preprocess_raw_data/classify_language/model.py 
 COPY services/preprocess_raw_data/classify_language/lid.176.bin ./services/preprocess_raw_data/classify_language/lid.176.bin

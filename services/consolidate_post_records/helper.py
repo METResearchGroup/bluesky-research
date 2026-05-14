@@ -1,41 +1,44 @@
 """Consolidates different types of post records into a single format."""
+
 from typing import Union
 
 from lib.constants import current_datetime_str
 from lib.db.bluesky_models.transformations import (
-    TransformedProfileViewBasicModel, TransformedRecordWithAuthorModel,
-    TransformedFeedViewPostModel
+    TransformedProfileViewBasicModel,
+    TransformedRecordWithAuthorModel,
+    TransformedFeedViewPostModel,
 )
 from lib.helper import track_performance
 from lib.log.logger import get_logger
 from services.consolidate_post_records.models import (
-    ConsolidatedMetrics, ConsolidatedPostRecordModel,
-    ConsolidatedPostRecordMetadataModel
+    ConsolidatedMetrics,
+    ConsolidatedPostRecordModel,
+    ConsolidatedPostRecordMetadataModel,
 )
 
 logger = get_logger(__file__)
 
 
-def consolidate_firehose_post(post: TransformedRecordWithAuthorModel) -> ConsolidatedPostRecordModel:  # noqa
+def consolidate_firehose_post(
+    post: TransformedRecordWithAuthorModel,
+) -> ConsolidatedPostRecordModel:  # noqa
     """Transforms the firehose posts into the consolidated format."""
     metadata_dict = {
         "synctimestamp": post.metadata.synctimestamp,
         "url": post.metadata.url,
         "source": "firehose",
-        "processed_timestamp": current_datetime_str
+        "processed_timestamp": current_datetime_str,
     }
     metadata: ConsolidatedPostRecordMetadataModel = (
-        ConsolidatedPostRecordMetadataModel(**metadata_dict)
+        ConsolidatedPostRecordMetadataModel(**metadata_dict)  # type: ignore
     )
-    metrics_dict = {
-        "like_count": None, "reply_count": None, "repost_count": None
-    }
+    metrics_dict = {"like_count": None, "reply_count": None, "repost_count": None}
     # firehose posts don't have the author hydrated, so all we have is the DID.
     author_dict = {
         "did": post.author,
         "handle": None,
         "avatar": None,
-        "display_name": None
+        "display_name": None,
     }
     author = TransformedProfileViewBasicModel(**author_dict)
     metrics: ConsolidatedMetrics = ConsolidatedMetrics(**metrics_dict)
@@ -62,26 +65,28 @@ def consolidate_firehose_post(post: TransformedRecordWithAuthorModel) -> Consoli
         "source": metadata.source,
         "like_count": metrics.like_count,
         "reply_count": metrics.reply_count,
-        "repost_count": metrics.repost_count
+        "repost_count": metrics.repost_count,
     }
     return ConsolidatedPostRecordModel(**res)
 
 
-def consolidate_feedview_post(post: TransformedFeedViewPostModel) -> ConsolidatedPostRecordModel:  # noqa
+def consolidate_feedview_post(
+    post: TransformedFeedViewPostModel,
+) -> ConsolidatedPostRecordModel:  # noqa
     """Transforms the feed view posts into the consolidated format."""
     metadata_dict = {
         "synctimestamp": post.metadata.synctimestamp,
         "url": post.metadata.url,
         "source": "most_liked",
-        "processed_timestamp": current_datetime_str
+        "processed_timestamp": current_datetime_str,
     }
     metadata: ConsolidatedPostRecordMetadataModel = (
-        ConsolidatedPostRecordMetadataModel(**metadata_dict)
+        ConsolidatedPostRecordMetadataModel(**metadata_dict)  # type: ignore
     )
     metrics_dict = {
         "like_count": post.like_count,
         "reply_count": post.reply_count,
-        "repost_count": post.repost_count
+        "repost_count": post.repost_count,
     }
     metrics: ConsolidatedMetrics = ConsolidatedMetrics(**metrics_dict)
     res = {
@@ -107,13 +112,13 @@ def consolidate_feedview_post(post: TransformedFeedViewPostModel) -> Consolidate
         "source": metadata.source,
         "like_count": metrics.like_count,
         "reply_count": metrics.reply_count,
-        "repost_count": metrics.repost_count
+        "repost_count": metrics.repost_count,
     }
     return ConsolidatedPostRecordModel(**res)
 
 
 def consolidate_post_record(
-    post: Union[TransformedFeedViewPostModel, TransformedRecordWithAuthorModel]
+    post: Union[TransformedFeedViewPostModel, TransformedRecordWithAuthorModel],
 ) -> ConsolidatedPostRecordModel:
     if isinstance(post, TransformedFeedViewPostModel):
         return consolidate_feedview_post(post)
@@ -125,9 +130,7 @@ def consolidate_post_record(
 
 @track_performance
 def consolidate_post_records(
-    posts: list[
-        Union[TransformedFeedViewPostModel, TransformedRecordWithAuthorModel]
-    ]
+    posts: list[Union[TransformedFeedViewPostModel, TransformedRecordWithAuthorModel]],
 ) -> list[ConsolidatedPostRecordModel]:
     logger.info(f"Consolidated the formats of {len(posts)} posts...")
     res = [consolidate_post_record(post) for post in posts]

@@ -15,6 +15,7 @@ import boto3
 from lib.aws.athena import Athena
 from lib.db.manage_local_data import load_data_from_local_storage
 from services.participant_data.helper import get_all_users
+from lib.db.models import StorageTier
 
 athena = Athena()
 
@@ -106,7 +107,7 @@ class StudyUserManager:
         if is_local:
             social_network_df = load_data_from_local_storage(
                 service="scraped_user_social_network",
-                storage_tiers=["cache", "active"],
+                storage_tiers=[StorageTier.CACHE, StorageTier.ACTIVE],
             )
             user_dids = set()
             for _, row in social_network_df.iterrows():
@@ -132,7 +133,7 @@ class StudyUserManager:
         try:
             response = self.s3.get_object(Bucket=self.s3_bucket, Key=key)
             post_uri_to_study_user_did_map = json.loads(response["Body"].read())
-        except self.s3.exceptions.NoSuchKey or use_new_hashmap:
+        except self.s3.exceptions.NoSuchKey or use_new_hashmap:  # type: ignore
             post_uri_to_study_user_did_map = {}
         return post_uri_to_study_user_did_map
 

@@ -85,7 +85,7 @@ def calculate_latest_superposters(
         AND row_num <= total_count * {top_n_percent}
         ORDER BY count DESC
         """  # noqa
-        ranked_users = posts_df.groupby("author_did").size().reset_index(name="count")
+        ranked_users = posts_df.groupby("author_did").size().reset_index(name="count")  # type: ignore
         ranked_users["row_num"] = ranked_users["count"].rank(
             method="first", ascending=False
         )
@@ -93,7 +93,7 @@ def calculate_latest_superposters(
         output_df = ranked_users[
             (posts_df["synctimestamp"] >= lookback_datetime_str)
             & (ranked_users["row_num"] <= total_count * top_n_percent)
-        ].sort_values(by="count", ascending=False)[["author_did", "count"]]
+        ].sort_values(by="count", ascending=False)[["author_did", "count"]]  # type: ignore
     elif threshold is not None:
         query = f"""
         SELECT author_did, COUNT(*) as count
@@ -108,10 +108,10 @@ def calculate_latest_superposters(
             .groupby("author_did")
             .size()
             .reset_index(name="count")
-        )
+        )  # type: ignore
         output_df = output_df[output_df["count"] >= threshold].sort_values(
             by="count", ascending=False
-        )
+        )  # type: ignore
     else:
         raise ValueError("Either percentile or threshold must be provided.")
 
@@ -123,7 +123,7 @@ def calculate_latest_superposters(
         superposters_df = output_df
 
     superposters = [
-        SuperposterModel(author_did=row["author_did"], count=row["count"])
+        SuperposterModel(author_did=row["author_did"], count=row["count"])  # type: ignore # noqa
         for _, row in superposters_df.iterrows()
     ]
 
@@ -137,7 +137,7 @@ def calculate_latest_superposters(
             superposters=superposters,
             method="top_n_percent" if top_n_percent is not None else "threshold",
             top_n_percent=top_n_percent,
-            threshold=threshold,
+            threshold=threshold,  # type: ignore
         )
         dtype_map = MAP_SERVICE_TO_METADATA["daily_superposters"]["dtypes_map"]
         output_dict = output.dict()
@@ -162,4 +162,3 @@ def calculate_latest_superposters(
 
 if __name__ == "__main__":
     calculate_latest_superposters(top_n_percent=None, threshold=5)
-    # load_latest_superposters()

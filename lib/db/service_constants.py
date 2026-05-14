@@ -668,6 +668,19 @@ MAP_SERVICE_TO_METADATA = {
             "partition_date": "string",
         },
     },
+    "get_posts_liked_by_study_users": {
+        "local_prefix": os.path.join(
+            root_local_data_directory, "get_posts_liked_by_study_users"
+        ),
+        "s3_prefix": "get_posts_liked_by_study_users",
+        "glue_table_name": "get_posts_liked_by_study_users",
+        "primary_key": "uri",
+        "timestamp_field": "synctimestamp",
+        "skip_deduping": True,
+        "skip_date_validation": True,
+        "pydantic_model": "",
+        "dtypes_map": {},
+    },
     "preprocessed_posts_used_in_feeds": {
         "local_prefix": os.path.join(
             root_local_data_directory, "preprocessed_posts_used_in_feeds"

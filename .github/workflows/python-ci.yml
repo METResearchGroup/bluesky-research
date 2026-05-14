@@ -76,6 +76,9 @@ jobs:
           ml_tooling/valence_classifier/tests \
           pipelines/backfill_records_coordination/tests \
           scripts/migrate_research_data_to_s3/tests \
+          services/aggregate_study_user_activities/tests \
+          services/compact_all_services/tests \
+          services/compact_user_session_logs/tests \
           services/backfill/pds_backfills/core/tests \
           services/backfill/pds_backfills/storage/tests \
           services/ml_inference/tests \
@@ -91,6 +94,7 @@ jobs:
           services/rank_score_feeds/tests \
           services/participant_data/tests \
           services/consolidate_enrichment_integrations/tests \
+          services/get_posts_liked_by_study_users/tests \
           services/calculate_superposters/tests \
           services/preprocess_raw_data/tests \
           services/sync/stream/tests \

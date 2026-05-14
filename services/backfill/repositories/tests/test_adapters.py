@@ -822,7 +822,7 @@ class TestS3Adapter_load_feed_posts_for_date:
             # Assert
             mock_calc_lookback.assert_called_once_with(
                 partition_date=partition_date,
-                num_days_lookback=4,  # FEED_LOOKBACK_DAYS_DURING_STUDY
+                num_days_lookback=5,  # FEED_LOOKBACK_DAYS_DURING_STUDY
                 min_lookback_date="2024-09-29",  # study_start_date
             )
 

@@ -64,7 +64,7 @@ def _load_from_local_storage(
     """
     superposters_df: pd.DataFrame = load_data_from_local_storage(
         service="daily_superposters", latest_timestamp=latest_timestamp
-    )
+    )  # type: ignore
 
     if len(superposters_df) == 0:
         logger.warning("No superposters found in latest batch.")

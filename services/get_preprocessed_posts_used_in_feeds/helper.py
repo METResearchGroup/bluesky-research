@@ -11,13 +11,17 @@ import gc
 import pandas as pd
 
 from lib.db.manage_local_data import export_data_to_local_storage
-from lib.datetime_utils import get_partition_dates
-from lib.log.logger import get_logger
-from services.backfill.posts_used_in_feeds.load_data import (
-    load_preprocessed_posts_used_in_feeds_for_partition_date as load_posts_with_lookback,
+from lib.datetime_utils import (
     calculate_start_end_date_for_lookback,
-    default_num_days_lookback,
+    get_partition_dates,
+)
+from lib.log.logger import get_logger
+from services.get_preprocessed_posts_used_in_feeds.constants import (
     default_min_lookback_date,
+    default_num_days_lookback,
+)
+from services.get_preprocessed_posts_used_in_feeds.join_feed_preprocessed_posts import (
+    load_preprocessed_posts_used_in_feeds_for_partition_date as load_joined_preprocessed_posts_for_feed_day,
 )
 
 logger = get_logger(__file__)
@@ -39,26 +43,26 @@ def load_preprocessed_posts_used_in_feeds_for_partition_date(
             and preprocessed_posts services.
 
     Behavior:
-        1. Calculates lookback window using default settings (5 days lookback,
-           minimum date of 2024-09-28)
+        1. Calculates lookback window using service defaults (aligned with
+           ``FEED_LOOKBACK_DAYS_DURING_STUDY`` and shared study lookback floor).
         2. Loads preprocessed posts using the lookback window to ensure we capture
            all relevant posts
         3. Logs the number of posts found at each step
     """
     logger.info(f"Processing partition date {partition_date} with lookback...")
 
-    # Calculate lookback window
     lookback_start_date, lookback_end_date = calculate_start_end_date_for_lookback(
         partition_date=partition_date,
         num_days_lookback=default_num_days_lookback,
         min_lookback_date=default_min_lookback_date,
     )
 
-    # Load posts with lookback
-    preprocessed_posts_df = load_posts_with_lookback(
+    preprocessed_posts_df = load_joined_preprocessed_posts_for_feed_day(
         partition_date=partition_date,
         lookback_start_date=lookback_start_date,
         lookback_end_date=lookback_end_date,
+        table_columns=None,
+        dedupe_uri_keep_first=False,
     )
 
     logger.info(

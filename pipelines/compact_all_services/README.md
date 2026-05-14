@@ -1,41 +1,30 @@
 # Compact All Services
 
-Pipeline for compacting data files across multiple services into more efficient formats.
+Pipeline for compacting local partitioned datasets across configured services.
 
 ## Overview
 
-This pipeline consolidates data files from various services into more compact formats to improve query performance and reduce storage costs. It handles both local storage and S3 data.
+**Scheduled production runs** ([`orchestration/compaction_pipeline.py`](../../orchestration/compaction_pipeline.py)) execute **local storage compaction only**: reload each service from disk, rewrite via [`export_data_to_local_storage`](../../lib/db/manage_local_data.py), then delete superseded files. Implementation lives in [`services/compact_all_services/local_compaction.py`](../../services/compact_all_services/local_compaction.py).
 
-The main functionalities are:
+**Legacy / manual S3 compaction** (Athena query → JSONL under `compacted/` → delete raw S3 keys) remains in [`services/compact_all_services/s3_compaction.py`](../../services/compact_all_services/s3_compaction.py). It is **not** invoked by this pipeline’s handler.
 
-1. Compacting local service data:
-   - Loads data from local storage for each service
-   - Exports to consolidated files by date
-   - Optionally deletes old files after compaction
-   - Handles special cases for certain services (e.g. preprocessed posts, ML inference)
+**S3 → local migration** for ad hoc backfills is in [`services/compact_all_services/migration.py`](../../services/compact_all_services/migration.py).
 
-2. Compacting S3 data:
-   - Queries data from Athena
-   - Deduplicates records based on primary keys where needed
-   - Exports compacted data to S3 with timestamps
-   - Deletes original files after successful compaction
+## Local compaction behavior
 
-## Services Handled
+- Loads all partitions for the service from local storage.
+- Exports consolidated layout (special cases: `preprocessed_posts` and ML inference datasets split by `source`; `study_user_activity` filtered by-record type).
+- Deletes filenames captured before export and prunes empty directories.
 
-The pipeline compacts data for these services:
+## Services handled (local list)
 
-- Preprocessed posts
-- User activity data (in-network, study users)
-- Social network data
-- User interactions (likes, replies)
-- Most liked posts
-- Daily superposters
-- User session logs
-- Feed analytics
-- Post scores
-- Consolidated post records
-- ML inference results (Perspective API, sociopolitical)
+See `LOCAL_COMPACTION_SERVICE_NAMES` in [`local_compaction.py`](../../services/compact_all_services/local_compaction.py).
 
 ## Usage
 
-The pipeline can be triggered via Lambda or run locally. It's normally run via `orchestration/compaction_pipeline.py` which executes it on a cron schedule.
+- **HPC:** [`submit_job.sh`](submit_job.sh) runs [`handler.py`](handler.py).
+- **Orchestration:** Prefect flow in [`orchestration/compaction_pipeline.py`](../../orchestration/compaction_pipeline.py); `snapshot_data` waits for this job.
+
+## Related
+
+- **Session log compaction** (different pipeline): [`pipelines/compact_user_session_logs/`](../compact_user_session_logs/).
