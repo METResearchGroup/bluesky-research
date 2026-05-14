@@ -1,6 +1,6 @@
 # Redesigning algorithms to intervene on social norm misperceptions during a national election
 
-This repository is the research-grade counterpart to a production social feed: it powered a large, preregistered Bluesky field experiment during the 2024 US presidential election and bundles the full loop from live-graph ingestion and multimodal content understanding through custom ranking, participant-facing feed APIs, session logging, and export pipelines for analysis. This is an end-to-end, platform-independent stack that lets a lab design, deploy, and audit recommender behavior in the wild instead of approximating it from the outside.
+This repository is the research-grade counterpart to a large-scale live social feed: it powered a large, preregistered Bluesky field experiment during the 2024 US presidential election and bundles the full loop from live-graph ingestion and multimodal content understanding through custom ranking, participant-facing feed APIs, session logging, and export pipelines for analysis. This is an end-to-end, platform-independent stack that lets a lab design, deploy, and audit recommender behavior in the wild instead of approximating it from the outside.
 
 ## Research Context
 
@@ -35,14 +35,14 @@ Production work is coordinated through a hybrid research infrastructure:
 
 - **Prefect** defines the high-level DAGs in `orchestration/`.
 - **SLURM** runs scheduled jobs on the Quest HPC cluster.
-- **Pipeline handlers** in `pipelines/` provide job entrypoints and thin wrappers.
-- **Service modules** in `services/` contain the reusable production and analysis logic.
+- **Pipeline handlers** in `pipelines/` provide job entrypoints.
+- **Service modules** in `services/` contain the core application logic.
 - **AWS/S3/Athena** provide storage and analytical query infrastructure.
 - **FastAPI** powers the Bluesky feed generator API in `feed_api/`.
 
-## Production Data Flow
+## Data Flow
 
-The production system is organized around seven workflows:
+The system is organized around seven workflows (each managed by a DAG):
 
 1. **Sync pipeline**: captures Bluesky firehose records and persists streamed batches.
 2. **Integrations sync pipeline**: pulls curated Bluesky trending and most-liked feeds to supplement firehose capture.
@@ -52,17 +52,11 @@ The production system is organized around seven workflows:
 6. **Compaction pipeline**: rewrites partitioned service exports and snapshots designated data trees.
 7. **Analytics pipeline**: compacts study telemetry and aggregates participant activity tables for analysis.
 
-For detailed DAGs and task mappings, start with:
-
-- `orchestration/README.md` for Prefect flows and SLURM triggers.
-- `pipelines/README.md` for job entrypoints and handler ownership.
-- `services/README.md` for the service-level production and analysis map.
-
 ## Repository Map
 
 | Path | Purpose |
 | --- | --- |
-| `orchestration/` | Prefect DAGs and SLURM submission scripts for scheduled production workflows. |
+| `orchestration/` | Prefect DAGs and SLURM submission scripts for scheduled workflows. |
 | `pipelines/` | SLURM job directories and `handler.py` entrypoints that invoke service logic. |
 | `services/` | Main production, analysis, enrichment, backfill, and research service modules. |
 | `feed_api/` | Bluesky feed generator API used to serve personalized feed skeletons and log sessions. |
@@ -71,7 +65,7 @@ For detailed DAGs and task mappings, start with:
 | `docs/runbooks/` | Operational runbooks for selected services and maintenance workflows. |
 | `terraform/` | Infrastructure-as-code for AWS resources used by the hybrid deployment. |
 | `transform/` | Helpers for transforming raw sync data into consolidated formats. |
-| `scripts/` | One-off scripts and operational helpers, mostly outside production paths. |
+| `scripts/` | One-off scripts. |
 | `demos/` | Historical prototypes, experiments, and exploratory demos. |
 | `Dockerfiles/` | Deprecated cloud-first deployment artifacts retained for reference. |
 
@@ -99,12 +93,12 @@ Variable names and short descriptions are in [`.env.example`](.env.example). For
 
 Use these documents as the next layer of detail:
 
-- `services/README.md`: best overall map of production services, analysis modules, and ad hoc tooling.
+- `services/README.md`: best overall map of services, analysis modules, and ad hoc tooling.
 - `orchestration/README.md`: Prefect DAGs, task ordering, and SLURM flow triggers.
 - `pipelines/README.md`: job directories and their corresponding service packages.
 - `feed_api/README.md`: Bluesky feed generator API and session logging flow.
 - `terraform/README.md`: infrastructure-as-code and hybrid AWS/on-prem context.
-- `docs/runbooks/services/`: operational runbooks for selected production services.
+- `docs/runbooks/services/`: operational runbooks for selected services.
 - [`docs/runbooks/SETUP_REPO.md`](docs/runbooks/SETUP_REPO.md): local setup, dependencies, and `.env` configuration.
 
 ## License
