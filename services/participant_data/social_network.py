@@ -6,6 +6,7 @@ import pandas as pd
 
 from lib.db.data_processing import parse_converted_pandas_dicts
 from lib.db.manage_local_data import load_data_from_local_storage
+from lib.db.models import StorageTier
 from lib.log.logger import get_logger
 
 from services.participant_data.models import SocialNetworkRelationshipModel
@@ -68,7 +69,7 @@ def load_user_social_network_map() -> dict[str, list[str]]:
     user_social_network_df: pd.DataFrame = load_data_from_local_storage(
         service="scraped_user_social_network",
         latest_timestamp=None,
-        storage_tiers=["cache", "active"],
+        storage_tiers=[StorageTier.CACHE, StorageTier.ACTIVE],
         validate_pq_files=True,
     )
     social_dicts: list[dict] = user_social_network_df.to_dict(orient="records")

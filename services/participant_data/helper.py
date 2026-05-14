@@ -1,7 +1,6 @@
 """Helper tooling from the participant data service."""
 
 import hashlib
-from typing import Optional
 
 from botocore.exceptions import ClientError
 
@@ -14,7 +13,7 @@ from services.participant_data.models import UserToBlueskyProfileModel
 logger = get_logger(__name__)
 TABLE_NAME = "study_participants"
 dynamodb = DynamoDB()
-table = dynamodb.resource.Table(TABLE_NAME)
+table = dynamodb.resource.Table(TABLE_NAME)  # type: ignore
 
 
 def insert_bsky_user_to_db(
@@ -76,7 +75,7 @@ def insert_bsky_user_to_study(
         study_user_id=study_user_id,
         bluesky_handle=bluesky_handle,
         bluesky_user_did=bluesky_user_did,
-        condition=condition,
+        condition=condition,  # type: ignore
         is_study_user=is_study_user,
         created_timestamp=current_datetime_str,
     )
@@ -103,8 +102,8 @@ def get_bsky_study_user(bluesky_user_did: str) -> UserToBlueskyProfileModel:
 def manage_bsky_study_user(payload: dict) -> dict:
     """Manage Bluesky study users."""
     operation = payload.get("operation")
-    message: str = None
-    result: Optional[dict] = None
+    message: str | None = None
+    result: dict | None = None
     try:
         if operation == "POST":
             user_model: UserToBlueskyProfileModel = insert_bsky_user_to_study(
@@ -113,14 +112,14 @@ def manage_bsky_study_user(payload: dict) -> dict:
                 bluesky_user_did=payload["bluesky_user_did"],
                 is_study_user=payload.get("is_study_user", True),
             )
-            result = user_model
+            result = user_model.model_dump()
             message = "User added to study."
         elif operation == "GET":
-            user_model: UserToBlueskyProfileModel = get_bsky_study_user(
+            user_model = get_bsky_study_user(
                 bluesky_user_did=payload["bluesky_user_did"]
             )
             if user_model:
-                result = user_model.dict()
+                result = user_model.model_dump()
             message = "User fetched successfully."
         elif operation == "DELETE":
             delete_bsky_user_from_study(bluesky_user_did=payload["bluesky_user_did"])
