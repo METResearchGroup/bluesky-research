@@ -19,11 +19,12 @@ from lib.db.manage_local_data import (
     load_data_from_local_storage,
     export_data_to_local_storage,
 )
-from lib.datetime_utils import get_partition_dates
-from lib.log.logger import get_logger
-from services.backfill.posts_used_in_feeds.load_data import (
+from lib.db.models import StorageTier
+from lib.datetime_utils import (
     calculate_start_end_date_for_lookback,
+    get_partition_dates,
 )
+from lib.log.logger import get_logger
 from services.get_posts_liked_by_study_users.constants import (
     default_num_days_lookback,
     default_min_lookback_date,
@@ -39,14 +40,14 @@ def load_raw_posts_with_lookback(lookback_start_date: str, lookback_end_date: st
     """Load the raw posts with lookback."""
     active_df = load_data_from_local_storage(
         service="raw_sync",
-        storage_tiers=["active"],
+        storage_tiers=[StorageTier.ACTIVE],
         custom_args={"record_type": "post"},
         start_partition_date=lookback_start_date,
         end_partition_date=lookback_end_date,
     )
     cache_df = load_data_from_local_storage(
         service="raw_sync",
-        storage_tiers=["cache"],
+        storage_tiers=[StorageTier.CACHE],
         custom_args={"record_type": "post"},
         start_partition_date=lookback_start_date,
         end_partition_date=lookback_end_date,
@@ -59,14 +60,14 @@ def load_replies_with_lookback(lookback_start_date: str, lookback_end_date: str)
     """Load the replies with lookback."""
     active_df = load_data_from_local_storage(
         service="raw_sync",
-        storage_tiers=["active"],
+        storage_tiers=[StorageTier.ACTIVE],
         custom_args={"record_type": "reply"},
         start_partition_date=lookback_start_date,
         end_partition_date=lookback_end_date,
     )
     cache_df = load_data_from_local_storage(
         service="raw_sync",
-        storage_tiers=["cache"],
+        storage_tiers=[StorageTier.CACHE],
         custom_args={"record_type": "reply"},
         start_partition_date=lookback_start_date,
         end_partition_date=lookback_end_date,
@@ -79,14 +80,14 @@ def load_reposts_with_lookback(lookback_start_date: str, lookback_end_date: str)
     """Load the reposts with lookback."""
     active_df = load_data_from_local_storage(
         service="raw_sync",
-        storage_tiers=["active"],
+        storage_tiers=[StorageTier.ACTIVE],
         custom_args={"record_type": "repost"},
         start_partition_date=lookback_start_date,
         end_partition_date=lookback_end_date,
     )
     cache_df = load_data_from_local_storage(
         service="raw_sync",
-        storage_tiers=["cache"],
+        storage_tiers=[StorageTier.CACHE],
         custom_args={"record_type": "repost"},
         start_partition_date=lookback_start_date,
         end_partition_date=lookback_end_date,
@@ -99,14 +100,14 @@ def load_likes_for_partition_date(partition_date: str):
     """Load the likes for a given partition date."""
     active_df = load_data_from_local_storage(
         service="raw_sync",
-        storage_tiers=["active"],
+        storage_tiers=[StorageTier.ACTIVE],
         custom_args={"record_type": "like"},
         start_partition_date=partition_date,
         end_partition_date=partition_date,
     )
     cache_df = load_data_from_local_storage(
         service="raw_sync",
-        storage_tiers=["cache"],
+        storage_tiers=[StorageTier.CACHE],
         custom_args={"record_type": "like"},
         start_partition_date=partition_date,
         end_partition_date=partition_date,
@@ -119,14 +120,14 @@ def load_likes_for_lookback_range(lookback_start_date: str, lookback_end_date: s
     """Load the likes for a given lookback range."""
     active_df = load_data_from_local_storage(
         service="raw_sync",
-        storage_tiers=["active"],
+        storage_tiers=[StorageTier.ACTIVE],
         custom_args={"record_type": "like"},
         start_partition_date=lookback_start_date,
         end_partition_date=lookback_end_date,
     )
     cache_df = load_data_from_local_storage(
         service="raw_sync",
-        storage_tiers=["cache"],
+        storage_tiers=[StorageTier.CACHE],
         custom_args={"record_type": "like"},
         start_partition_date=lookback_start_date,
         end_partition_date=lookback_end_date,
@@ -135,7 +136,7 @@ def load_likes_for_lookback_range(lookback_start_date: str, lookback_end_date: s
     return df
 
 
-def load_raw_posts_for_likes_from_partition_date(partition_date: str):
+def load_raw_posts_for_likes_from_partition_date(partition_date: str) -> pd.DataFrame:
     """Load the raw posts, replies, and reposts to check against likes from a
     given partition date."""
 
@@ -168,31 +169,29 @@ def load_raw_posts_for_likes_from_partition_date(partition_date: str):
         [json.loads(subject)["uri"] for subject in likes_df["subject"]]
     )
 
-    breakpoint()
-
-    # TODO: filter raw_posts_df.
-    filtered_raw_posts_df = raw_posts_df[raw_posts_df["uri"].isin(liked_post_uris)]
+    filtered_raw_posts_df = raw_posts_df[raw_posts_df["uri"].isin(liked_post_uris)]  # type: ignore
     filtered_raw_replies_df = raw_replies_df[
-        raw_replies_df["uri"].isin(liked_post_uris)
+        raw_replies_df["uri"].isin(liked_post_uris)  # type: ignore
     ]
     filtered_raw_reposts_df = raw_reposts_df[
-        raw_reposts_df["uri"].isin(liked_post_uris)
+        raw_reposts_df["uri"].isin(liked_post_uris)  # type: ignore
     ]
-
-    # TODO: can I combine them like this? Prob not TBH.
     filtered_raw_posts_df = pd.concat(
-        [filtered_raw_posts_df, filtered_raw_replies_df, filtered_raw_reposts_df]
+        [filtered_raw_posts_df, filtered_raw_replies_df, filtered_raw_reposts_df],
+        ignore_index=True,
     )
 
     total_likes = len(likes_df)
     total_raw_posts = len(raw_posts_df)
     total_filtered_raw_posts = len(filtered_raw_posts_df)
-    prop_likes_matched = total_filtered_raw_posts / total_likes
+    prop_likes_matched = (
+        total_filtered_raw_posts / total_likes if total_likes > 0 else 0.0
+    )
     logger.info(
         f"""(Partition date: {partition_date}): Loaded {total_likes} likes, {total_raw_posts} raw posts, and matched {total_filtered_raw_posts} raw posts to likes.
         Proportion of likes matched: {prop_likes_matched}."""
     )
-    return filtered_raw_posts_df
+    return filtered_raw_posts_df  # type: ignore
 
 
 # TODO: only need to write the URIs of the posts and then partition on synctimestamp,
@@ -208,11 +207,15 @@ def get_and_export_liked_posts_for_partition_date(partition_date: str):
     logger.info(
         f"(Partition date: {partition_date}): Loaded {len(raw_posts_liked_by_study_users_df)} raw posts liked by users on {partition_date}."
     )
+    if raw_posts_liked_by_study_users_df.empty:
+        logger.info(
+            f"(Partition date: {partition_date}): No matched liked posts; skipping export."
+        )
+        return
     export_data_to_local_storage(
-        df=raw_posts_liked_by_study_users_df,
+        df=raw_posts_liked_by_study_users_df,  # type: ignore
         service=service_name,
-        storage_tiers=["active"],
-        partition_date=partition_date,
+        export_format="parquet",
     )
     logger.info(
         f"(Partition date: {partition_date}): Exported {len(raw_posts_liked_by_study_users_df)} raw posts to {service_name}."
@@ -234,11 +237,8 @@ def get_and_export_liked_posts_for_partition_dates(
         get_and_export_liked_posts_for_partition_date(partition_date)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     likes = load_likes_for_lookback_range(
         lookback_start_date="2024-09-28",
         lookback_end_date="2024-12-01",
     )
-    # TODO: get the URIs and export, then load these into `backfill_endpoint_worker`
-    # and then use that to filter the records.
-    breakpoint()

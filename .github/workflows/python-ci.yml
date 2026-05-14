@@ -94,6 +94,7 @@ jobs:
           services/rank_score_feeds/tests \
           services/participant_data/tests \
           services/consolidate_enrichment_integrations/tests \
+          services/get_posts_liked_by_study_users/tests \
           services/calculate_superposters/tests \
           services/preprocess_raw_data/tests \
           services/sync/stream/tests \
