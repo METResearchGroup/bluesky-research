@@ -40,11 +40,16 @@ dependencies = [
     "tenacity>=8.5.0,<9.0.0",
     # Time zones (explicit; some paths no longer inherit pytz via transitive deps)
     "pytz>=2024.1",
+    "prefect>=3.7.0",
 ]
 
 [build-system]
 requires = ["setuptools>=69", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[tool.uv]
+required-version = ">=0.9.17"
+exclude-newer = "7 days"
 
 [project.optional-dependencies]
 # Development tools
