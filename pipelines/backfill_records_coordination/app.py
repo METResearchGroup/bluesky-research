@@ -37,7 +37,7 @@ DEFAULT_INTEGRATION_KWARGS = {
 }
 
 
-def validate_date_format(ctx, param, value):
+def validate_date_format(_ctx, _param, value):
     """Validates date string format (YYYY-MM-DD)."""
     if value is None:
         return None
