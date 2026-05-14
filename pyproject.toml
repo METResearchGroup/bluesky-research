@@ -280,6 +280,7 @@ testpaths = [
     "services/calculate_analytics/study_analytics/calculate_analytics/tests",
     "services/rank_score_feeds/tests",
     "services/participant_data/tests",
+    "services/aggregate_study_user_activities/tests",
     "services/consolidate_enrichment_integrations/tests",
     "services/calculate_superposters/tests",
     "services/sync/stream/tests",
