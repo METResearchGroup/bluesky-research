@@ -1,6 +1,6 @@
 """Migrate service data from S3 (via Athena) into local partitioned storage."""
 
-from typing import Literal, Optional
+from typing import Literal
 
 import pandas as pd
 
@@ -21,7 +21,7 @@ logger = get_logger(__name__)
 
 def compact_migrate_s3_data_to_local_storage(
     service: str,
-    timestamp: Optional[str] = None,
+    timestamp: str | None = None,
     export_format: Literal["json", "parquet"] = default_export_format,
     lookback_days: int = default_lookback_days,
 ) -> None:

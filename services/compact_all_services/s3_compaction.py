@@ -1,7 +1,6 @@
 """S3 / Athena compaction (manual or batch); not used by the SLURM local compaction handler."""
 
 import os
-from typing import Optional
 
 from lib.aws.athena import Athena
 from lib.aws.dynamodb import DynamoDB
@@ -32,7 +31,7 @@ S3_COMPACTION_SERVICE_NAMES: tuple[str, ...] = (
 )
 
 
-def generate_service_sql_query(service: str, timestamp: Optional[str] = None) -> str:
+def generate_service_sql_query(service: str, timestamp: str | None = None) -> str:
     """Creates a SQL query to get the rows for a particular service.
 
     For some tables, we want to both compact files and dedupe them. For others,
