@@ -1,10 +1,45 @@
 """Model configuration registry (loads from external YAML)."""
 
+from dataclasses import dataclass, field
 import threading
 from pathlib import Path
 from typing import Any
 
 import yaml
+
+
+@dataclass
+class ModelConfigLoader:
+    """Loads and caches model config from one path."""
+
+    config_path: Path | None = None
+    _config: dict[str, Any] | None = field(default=None, init=False, repr=False)
+    _lock: threading.Lock = field(
+        default_factory=threading.Lock, init=False, repr=False
+    )
+
+    def set_config_path(self, path: Path | str) -> None:
+        self.config_path = Path(path)
+        self._config = None
+
+    def load(self) -> dict[str, Any]:
+        config_path = self.config_path or (Path(__file__).parent / "models.yaml")
+        if self._config is not None:
+            return self._config
+        with self._lock:
+            if self._config is not None:
+                return self._config
+            if not config_path.exists():
+                raise FileNotFoundError(
+                    f"Model configuration file not found: {config_path}"
+                )
+            with open(config_path, "r") as f:
+                self._config = yaml.safe_load(f) or {}
+            self.config_path = config_path
+        return self._config
+
+
+_default_model_config_loader = ModelConfigLoader()
 
 
 class ModelConfig:
@@ -154,32 +189,26 @@ class ModelConfigRegistry:
     """
 
     _config: dict[str, Any] | None = None
-    _lock = threading.Lock()
     _config_path: Path | None = None
+    _loader: ModelConfigLoader = _default_model_config_loader
 
     @classmethod
     def set_config_path(cls, path: Path | str) -> None:
         """Set custom configuration file path (useful for testing)."""
         cls._config_path = Path(path)
-        cls._config = None  # Force reload
+        cls._config = None
+        cls._loader.set_config_path(path)
 
     @classmethod
     def _load_config(cls) -> dict[str, Any]:
         """Load configuration from YAML file (thread-safe)."""
-        config_path = cls._config_path or (Path(__file__).parent / "models.yaml")
         if cls._config is not None:
             return cls._config
-        with cls._lock:
-            if cls._config is not None:
-                return cls._config
-            if not config_path.exists():
-                raise FileNotFoundError(
-                    f"Model configuration file not found: {config_path}"
-                )
-            with open(config_path, "r") as f:
-                cls._config = yaml.safe_load(f)
-            cls._config_path = config_path  # Save resolved path
-        return cls._config or {}
+        if cls._config_path is not None and cls._loader.config_path != cls._config_path:
+            cls._loader.set_config_path(cls._config_path)
+        cls._config = cls._loader.load()
+        cls._config_path = cls._loader.config_path
+        return cls._config
 
     @classmethod
     def get_model_config(cls, model_identifier: str) -> ModelConfig:

@@ -54,6 +54,19 @@ def _validate_operations_structure(operations_by_type: dict) -> None:
             )
 
 
+def _process_record_operation(
+    *,
+    record_type: str,
+    record: object,
+    operation: Operation,
+    processor,
+    context: CacheWriteContext,
+) -> None:
+    transformed = processor.transform(record, operation)
+    decisions = processor.get_routing_decisions(transformed, operation, context)
+    route_decisions(decisions, transformed, operation, context)
+
+
 def operations_callback(
     operations_by_type: OperationsByType | dict, context: CacheWriteContext
 ) -> bool:
@@ -106,11 +119,13 @@ def operations_callback(
 
             for record in records.get("created", []):
                 try:
-                    transformed = processor.transform(record, Operation.CREATE)
-                    decisions = processor.get_routing_decisions(
-                        transformed, Operation.CREATE, context
+                    _process_record_operation(
+                        record_type=record_type,
+                        record=record,
+                        operation=Operation.CREATE,
+                        processor=processor,
+                        context=context,
                     )
-                    route_decisions(decisions, transformed, Operation.CREATE, context)
                 except Exception as e:
                     logger.error(f"Error processing {record_type} record (CREATE): {e}")
                     # we choose to make exceptions non-fatal as this is a real-time
@@ -123,11 +138,13 @@ def operations_callback(
 
             for record in records.get("deleted", []):
                 try:
-                    transformed = processor.transform(record, Operation.DELETE)
-                    decisions = processor.get_routing_decisions(
-                        transformed, Operation.DELETE, context
+                    _process_record_operation(
+                        record_type=record_type,
+                        record=record,
+                        operation=Operation.DELETE,
+                        processor=processor,
+                        context=context,
                     )
-                    route_decisions(decisions, transformed, Operation.DELETE, context)
                 except Exception as e:
                     logger.error(f"Error processing {record_type} record (DELETE): {e}")
                     continue

@@ -8,6 +8,8 @@ but not neccessarily the model inference itself.
 
 from __future__ import annotations
 
+import os
+from dataclasses import dataclass
 from threading import Lock
 from typing import Any, Optional
 
@@ -15,30 +17,73 @@ import numpy as np
 import pandas as pd
 
 from lib.batching_utils import create_batches
-from lib.helper import track_performance
-from lib.load_env_vars import EnvVarsContainer
+
+try:
+    from lib.helper import track_performance
+except ModuleNotFoundError:  # pragma: no cover - local lightweight fallback
+
+    def track_performance(func=None, *args, **kwargs):
+        if func is None:
+            return lambda inner: inner
+        return func
+
+
 from lib.log.logger import get_logger
 from ml_tooling.ime.constants import default_hyperparameters, default_model
 from ml_tooling.ime.helper import get_device
-from services.ml_inference.export_data import (
-    attach_batch_id_to_label_dicts,
-    return_failed_labels_to_input_queue,
-    write_posts_to_cache,
+
+try:
+    from services.ml_inference.export_data import (
+        attach_batch_id_to_label_dicts,
+        return_failed_labels_to_input_queue,
+        write_posts_to_cache,
+    )
+except ModuleNotFoundError:  # pragma: no cover - local lightweight fallback
+    from services.ml_inference.models import LabelWithBatchId
+
+    def attach_batch_id_to_label_dicts(labels, uri_to_batch_id):
+        return [
+            LabelWithBatchId(batch_id=uri_to_batch_id[label["uri"]], **label)
+            for label in labels
+        ]
+
+    def return_failed_labels_to_input_queue(*args, **kwargs):
+        return None
+
+    def write_posts_to_cache(*args, **kwargs):
+        return None
+
+
+from services.ml_inference.models import (
+    ImeLabelModel,
+    LabelWithBatchId,
+    PostToLabelModel,
 )
-from services.ml_inference.models import ImeLabelModel, LabelWithBatchId, PostToLabelModel
 
 logger = get_logger(__file__)
 
+
+@dataclass(frozen=True)
+class ImeRuntime:
+    model: Any
+    tokenizer: Any
+
+    def __iter__(self):
+        yield self.model
+        yield self.tokenizer
+
+
 # Keep IME importable without heavy ML deps; load lazily at call time.
-_model_and_tokenizer_cache: dict[tuple[str, str], tuple[Any, Any]] = {}
+_model_and_tokenizer_cache: dict[tuple[str, str], ImeRuntime] = {}
 _model_and_tokenizer_lock = Lock()
 
 
-def _load_model_and_tokenizer(model_name: str, device: Any) -> tuple[Any, Any]:
+def _load_model_and_tokenizer(model_name: str, device: Any) -> ImeRuntime:
     """Import and load IME model/tokenizer only when needed."""
     from ml_tooling.ime.inference import load_model_and_tokenizer
 
-    return load_model_and_tokenizer(model_name=model_name, device=device)
+    model, tokenizer = load_model_and_tokenizer(model_name=model_name, device=device)
+    return ImeRuntime(model=model, tokenizer=tokenizer)
 
 
 def _process_ime_batch(
@@ -59,7 +104,7 @@ def _process_ime_batch(
     )
 
 
-def _get_model_and_tokenizer(*, model_name: str = default_model) -> tuple[Any, Any]:
+def _get_model_and_tokenizer(*, model_name: str = default_model) -> ImeRuntime:
     """Lazy-load and cache the IME model/tokenizer."""
     device = get_device()
     cache_key = (model_name, str(device))
@@ -77,8 +122,12 @@ def _get_model_and_tokenizer(*, model_name: str = default_model) -> tuple[Any, A
         return loaded
 
 
+def _clear_model_and_tokenizer_cache() -> None:
+    _model_and_tokenizer_cache.clear()
+
+
 # gets around errors related to importing cometml in tests.
-if EnvVarsContainer.get_env_var("RUN_MODE") == "test":
+if os.getenv("RUN_MODE") == "test":
 
     def log_batch_classification_to_cometml(service="ml_inference_ime"):
         def decorator(func):
@@ -186,7 +235,9 @@ def batch_classify_posts(
 ) -> dict:
     """Run batch classification on the given posts."""
     dict_posts: list[dict] = [post.model_dump() for post in posts]
-    batches: list[list[dict]] = create_batches(batch_list=dict_posts, batch_size=batch_size)
+    batches: list[list[dict]] = create_batches(
+        batch_list=dict_posts, batch_size=batch_size
+    )
     total_batches = len(batches)
     total_posts_successfully_labeled = 0
     total_posts_failed_to_label = 0

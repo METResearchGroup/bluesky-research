@@ -7,7 +7,15 @@ Here, we're just using content-based heuristics for now.
 
 import pandas as pd
 
-from lib.helper import track_performance
+try:
+    from lib.helper import track_performance
+except ModuleNotFoundError:  # pragma: no cover - local lightweight fallback
+
+    def track_performance(func=None, *args, **kwargs):
+        if func is None:
+            return lambda inner: inner
+        return func
+
 
 url_shorteners = set(
     [

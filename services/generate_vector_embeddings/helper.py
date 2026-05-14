@@ -1,5 +1,8 @@
 """Service for generating vector embeddings for posts."""
 
+# ruff: noqa: E402
+
+from dataclasses import dataclass
 import os
 
 import numpy as np
@@ -8,12 +11,22 @@ from sklearn.metrics.pairwise import cosine_similarity
 import torch
 from transformers import AutoTokenizer, AutoModel
 
-from lib.aws.athena import Athena
-from lib.aws.dynamodb import DynamoDB
-from lib.aws.s3 import S3
+_athena = None
+_dynamodb = None
+_s3 = None
 from lib.db.data_processing import parse_converted_pandas_dicts
 from lib.db.manage_local_data import load_latest_data
-from lib.helper import track_performance
+
+try:
+    from lib.helper import track_performance
+except ModuleNotFoundError:  # pragma: no cover - local lightweight fallback
+
+    def track_performance(func=None, *args, **kwargs):
+        if func is None:
+            return lambda inner: inner
+        return func
+
+
 from lib.datetime_utils import generate_current_datetime_str
 from lib.log.logger import get_logger
 from services.generate_vector_embeddings.models import PostSimilarityScoreModel
@@ -26,43 +39,85 @@ vector_embeddings_root_s3_key = "vector_embeddings"
 
 logger = get_logger(__name__)
 
-athena = Athena()
-dynamodb = DynamoDB()
-s3 = S3()
-
 dynamodb_table_name = "vector_embedding_sessions"
 batch_size = 64
 
 
-def get_device():
+@dataclass
+class EmbeddingRuntime:
+    device: torch.device
+    tokenizer: AutoTokenizer
+    model: AutoModel
+
+
+_embedding_runtime: EmbeddingRuntime | None = None
+
+
+def _get_athena():
+    global _athena
+    if _athena is None:
+        from lib.aws.athena import Athena
+
+        _athena = Athena()
+    return _athena
+
+
+def _get_dynamodb():
+    global _dynamodb
+    if _dynamodb is None:
+        from lib.aws.dynamodb import DynamoDB
+
+        _dynamodb = DynamoDB()
+    return _dynamodb
+
+
+def _get_s3():
+    global _s3
+    if _s3 is None:
+        from lib.aws.s3 import S3
+
+        _s3 = S3()
+    return _s3
+
+
+def get_device() -> torch.device:
     if torch.cuda.is_available():
-        print("CUDA backend available.")
-        device = torch.device("cuda")
+        logger.info("CUDA backend available.")
+        return torch.device("cuda")
     elif torch.backends.mps.is_available() and torch.backends.mps.is_built():
-        print("Arm mac GPU available, using GPU.")
-        print(f"{torch.backends.mps.is_available()=}")
-        print(f"{torch.backends.mps.is_built()=}")
-        device = torch.device("mps")  # for Arm Macs
+        logger.info("Arm mac GPU available, using MPS.")
+        return torch.device("mps")
     else:
-        print("GPU not available, using CPU")
-        device = torch.device("cpu")
-        raise ValueError("GPU not available, using CPU")
-    return device
+        logger.info("GPU not available, using CPU.")
+        return torch.device("cpu")
 
 
-torch.cuda.empty_cache()
-device = get_device()
-tokenizer = AutoTokenizer.from_pretrained(  # nosec B615
-    DEFAULT_EMBEDDING_MODEL_NAME, revision=DEFAULT_EMBEDDING_MODEL_REVISION
-)
-model = AutoModel.from_pretrained(  # nosec B615
-    DEFAULT_EMBEDDING_MODEL_NAME, revision=DEFAULT_EMBEDDING_MODEL_REVISION
-).to(device)
+def _get_embedding_runtime() -> EmbeddingRuntime:
+    global _embedding_runtime
+    if _embedding_runtime is not None:
+        return _embedding_runtime
+
+    device = get_device()
+    if device.type == "cuda":
+        torch.cuda.empty_cache()
+
+    tokenizer = AutoTokenizer.from_pretrained(  # nosec B615
+        DEFAULT_EMBEDDING_MODEL_NAME, revision=DEFAULT_EMBEDDING_MODEL_REVISION
+    )
+    model = AutoModel.from_pretrained(  # nosec B615
+        DEFAULT_EMBEDDING_MODEL_NAME, revision=DEFAULT_EMBEDDING_MODEL_REVISION
+    ).to(device)
+    _embedding_runtime = EmbeddingRuntime(
+        device=device,
+        tokenizer=tokenizer,
+        model=model,
+    )
+    return _embedding_runtime
 
 
 def get_latest_embedding_session() -> dict | None:
     try:
-        sessions: list[dict] = dynamodb.get_all_items_from_table(
+        sessions: list[dict] = _get_dynamodb().get_all_items_from_table(
             table_name=dynamodb_table_name
         )  # noqa
         if not sessions:
@@ -81,7 +136,7 @@ def get_latest_embedding_session() -> dict | None:
 
 def insert_embedding_session(embedding_session: dict):
     try:
-        dynamodb.insert_item_into_table(
+        _get_dynamodb().insert_item_into_table(
             item=embedding_session, table_name=dynamodb_table_name
         )
         logger.info(f"Successfully inserted embedding session: {embedding_session}")
@@ -133,16 +188,17 @@ def get_embeddings(
         f"Getting embeddings for {len(texts)} texts with embedding model {model_name}..."
     )  # noqa
 
+    runtime = _get_embedding_runtime()
     all_embeddings = []
 
     for i in range(0, len(texts), batch_size):
         batch_texts = texts[i : i + batch_size]
-        inputs = tokenizer(
+        inputs = runtime.tokenizer(
             batch_texts, return_tensors="pt", padding=True, truncation=True
-        ).to(device)
+        ).to(runtime.device)
 
         with torch.no_grad():
-            outputs = model(**inputs)
+            outputs = runtime.model(**inputs)
 
         # Use the mean of the token embeddings as the sentence embedding
         embeddings = outputs.last_hidden_state.mean(dim=1)  # (batch, 768)
@@ -155,7 +211,7 @@ def get_embeddings(
         )  # Move the result back to CPU if it was on GPU
 
         # Clear cache to free up memory
-        if device == torch.device("cuda") or device == torch.device("mps"):
+        if runtime.device.type in {"cuda", "mps"}:
             torch.cuda.empty_cache()
 
     return torch.cat(all_embeddings, dim=0)
@@ -187,7 +243,7 @@ def get_previously_embedded_post_uris() -> set[str]:
     """Get the URIs of the posts that have already been embedded."""
     source_tables = ["in_network_embeddings", "most_liked_feed_embeddings"]
     query = " UNION ALL ".join([f"SELECT uri FROM {table}" for table in source_tables])
-    df = athena.query_results_as_df(query)
+    df = _get_athena().query_results_as_df(query)
     return set(df["uri"].tolist())
 
 
@@ -227,9 +283,9 @@ def generate_vector_embeddings_and_calculate_similarity_scores(
             "No most liked posts to embed. Loading latest averaged embedding from S3."
         )
         prefix = os.path.join("vector_embeddings", "average_most_liked_feed_embeddings")
-        keys: list[str] = s3.list_keys_given_prefix(prefix)
+        keys: list[str] = _get_s3().list_keys_given_prefix(prefix)
         latest_key: str = max(keys)
-        embedding_df: pd.DataFrame = s3.read_parquet_from_s3(latest_key)
+        embedding_df: pd.DataFrame = _get_s3().read_parquet_from_s3(latest_key)
         embedding_arr: np.ndarray = np.array(embedding_df["embedding"][0][0])
         most_liked_average_embedding: torch.Tensor = torch.tensor(
             embedding_arr
@@ -328,7 +384,7 @@ def do_vector_embeddings():
             }
             for (post, post_embedding) in zip(most_liked_posts, most_liked_embeddings)
         ]
-        s3.write_dicts_parquet_to_s3(
+        _get_s3().write_dicts_parquet_to_s3(
             most_liked_post_embedding_results, most_liked_post_embedding_key
         )
 
@@ -344,7 +400,7 @@ def do_vector_embeddings():
             "embedding_model": DEFAULT_EMBEDDING_MODEL_NAME,
             "insert_timestamp": timestamp,
         }
-        s3.write_dict_parquet_to_s3(
+        _get_s3().write_dict_parquet_to_s3(
             average_most_liked_feed_embeddings, average_most_liked_feed_embeddings_key
         )
     else:
@@ -363,10 +419,12 @@ def do_vector_embeddings():
         )
     ]
 
-    s3.write_dicts_parquet_to_s3(
+    _get_s3().write_dicts_parquet_to_s3(
         in_network_post_embedding_results, in_network_post_embedding_key
     )
-    s3.write_dicts_parquet_to_s3(similarity_scores_results, similarity_scores_key)
+    _get_s3().write_dicts_parquet_to_s3(
+        similarity_scores_results, similarity_scores_key
+    )
 
     logger.info(
         f"Exported embeddings and similarity scores to {in_network_post_embedding_key}, {most_liked_post_embedding_key}, {average_most_liked_feed_embeddings_key}, {similarity_scores_key}"
