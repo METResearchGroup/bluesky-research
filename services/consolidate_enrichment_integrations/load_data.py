@@ -30,4 +30,4 @@ def load_enriched_posts(
     return load_data_from_local_storage(
         service="consolidated_enriched_post_records",
         latest_timestamp=latest_timestamp,
-    )
+    )  # type: ignore
