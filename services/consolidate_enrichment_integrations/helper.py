@@ -1,23 +1,23 @@
 """Helper functions for the consolidate_enrichment_integrations service."""
 
 from datetime import datetime, timedelta, timezone
-from typing import Optional
 
 import pandas as pd
 
-from lib.aws.athena import Athena
 from lib.aws.dynamodb import DynamoDB
-from lib.aws.s3 import S3
 from lib.constants import timestamp_format
-from lib.db.data_processing import parse_converted_pandas_dicts
-from lib.db.manage_local_data import (
-    export_data_to_local_storage,
-    load_data_from_local_storage,
-)
+from lib.db.manage_local_data import export_data_to_local_storage
 from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from lib.helper import track_performance
 from lib.datetime_utils import generate_current_datetime_str
 from lib.log.logger import get_logger
+from services.consolidate_enrichment_integrations.loaders import (
+    load_latest_perspective_api_labels,
+    load_latest_preprocessed_posts,
+    load_latest_similarity_scores,
+    load_latest_sociopolitical_labels,
+    load_previously_consolidated_enriched_post_uris,
+)
 from services.consolidate_enrichment_integrations.models import (
     ConsolidatedEnrichedPostModel,
 )  # noqa
@@ -30,17 +30,13 @@ from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
 
 
 logger = get_logger(__name__)
-root_s3_key = "consolidated_enriched_post_records"
 
-athena = Athena()
 dynamodb = DynamoDB()
-s3 = S3()
 
 dynamodb_table_name = "enrichment_consolidation_sessions"
-athena_table_name = "consolidated_enriched_post_records"
 
 
-def get_latest_enrichment_consolidation_session() -> dict:
+def get_latest_enrichment_consolidation_session() -> dict | None:
     """Get the latest enrichment consolidation session."""
     try:
         sessions: list[dict] = dynamodb.get_all_items_from_table(
@@ -72,61 +68,6 @@ def insert_enrichment_consolidation_session(enrichment_consolidation_session: di
     except Exception as e:
         logger.error(f"Failed to insert enrichment consolidation session: {e}")  # noqa
         raise
-
-
-def load_latest_preprocessed_posts(
-    timestamp: str,
-) -> list[FilteredPreprocessedPostModel]:
-    df: pd.DataFrame = load_data_from_local_storage(
-        service="preprocessed_posts", latest_timestamp=timestamp
-    )
-    df_dicts = df.to_dict(orient="records")
-    df_dicts = parse_converted_pandas_dicts(df_dicts)
-    df_dicts_cleaned = [post for post in df_dicts if post["text"] is not None]
-    return [FilteredPreprocessedPostModel(**post) for post in df_dicts_cleaned]
-
-
-def load_previously_consolidated_enriched_post_uris() -> set[str]:
-    df = load_data_from_local_storage(
-        service="consolidated_enriched_post_records", latest_timestamp=None
-    )
-    return set(df["uri"].tolist())
-
-
-def load_latest_perspective_api_labels(
-    timestamp: str,
-) -> list[PerspectiveApiLabelsModel]:
-    df = load_data_from_local_storage(
-        service="ml_inference_perspective_api", latest_timestamp=timestamp
-    )
-    df_dicts = df.to_dict(orient="records")
-    df_dicts = parse_converted_pandas_dicts(df_dicts)
-    return [PerspectiveApiLabelsModel(**label) for label in df_dicts]
-
-
-def load_latest_sociopolitical_labels(
-    timestamp: str,
-) -> list[SociopoliticalLabelsModel]:
-    df = load_data_from_local_storage(
-        service="ml_inference_sociopolitical", latest_timestamp=timestamp
-    )
-    df_dicts = df.to_dict(orient="records")
-    df_dicts = parse_converted_pandas_dicts(df_dicts)
-    return [SociopoliticalLabelsModel(**label) for label in df_dicts]
-
-
-# NOTE: might have to be migrated at some point TBH.
-# Will revisit.
-def load_latest_similarity_scores(timestamp: str) -> list[PostSimilarityScoreModel]:
-    where_filter = f"insert_timestamp > '{timestamp}'" if timestamp else "1=1"  # noqa
-    query = f"""
-    SELECT * FROM post_cosine_similarity_scores
-    WHERE {where_filter}
-    """
-    df: pd.DataFrame = athena.query_results_as_df(query)
-    df_dicts = df.to_dict(orient="records")
-    df_dicts = parse_converted_pandas_dicts(df_dicts)
-    return [PostSimilarityScoreModel(**score) for score in df_dicts]
 
 
 @track_performance
@@ -189,7 +130,7 @@ def consolidate_enrichment_integrations(
             tags=preprocessed.tags,
             synctimestamp=preprocessed.synctimestamp,
             url=preprocessed.url,
-            source=preprocessed.source,
+            source=preprocessed.source,  # type: ignore
             like_count=preprocessed.like_count,
             reply_count=preprocessed.reply_count,
             repost_count=preprocessed.repost_count,
@@ -286,12 +227,13 @@ def export_posts(posts: list[ConsolidatedEnrichedPostModel]):
 
 @track_performance
 def do_consolidate_enrichment_integrations(
-    backfill_period: Optional[str] = None, backfill_duration: Optional[int] = None
+    backfill_period: str | None = None, backfill_duration: int | None = None
 ):
     """Do the enrichment consolidation.
 
     Also includes optional backfill period and backfill duration.
     """
+    backfill_time: datetime | None = None
     if backfill_duration is not None and backfill_period in ["days", "hours"]:
         current_time = datetime.now(timezone.utc)
         if backfill_period == "days":
@@ -300,19 +242,18 @@ def do_consolidate_enrichment_integrations(
         elif backfill_period == "hours":
             backfill_time = current_time - timedelta(hours=backfill_duration)
             logger.info(f"Backfilling {backfill_duration} hours of data.")
-    else:
-        backfill_time = None
 
     # load previous session data
-    latest_enrichment_consolidation_session: dict = (
+    latest_enrichment_consolidation_session: dict | None = (
         get_latest_enrichment_consolidation_session()
     )  # noqa
+    enrichment_consolidation_timestamp: str | None = None
     if latest_enrichment_consolidation_session is not None:
-        enrichment_consolidation_timestamp: str = (
-            latest_enrichment_consolidation_session["enrichment_consolidation_timestamp"]  # noqa
+        enrichment_consolidation_timestamp = (
+            latest_enrichment_consolidation_session[
+                "enrichment_consolidation_timestamp"
+            ]  # noqa
         )
-    else:
-        enrichment_consolidation_timestamp = None
 
     if backfill_time is not None:
         backfill_timestamp = backfill_time.strftime(timestamp_format)

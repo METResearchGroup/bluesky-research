@@ -1,7 +1,5 @@
 """Load consolidated enriched post data."""
 
-from typing import Optional
-
 import pandas as pd
 
 from lib.db.manage_local_data import load_data_from_local_storage
@@ -12,7 +10,7 @@ logger = get_logger(__name__)
 
 
 def load_enriched_posts(
-    latest_timestamp: Optional[str] = None,
+    latest_timestamp: str | None = None,
 ) -> pd.DataFrame:
     """Load and validate consolidated enriched posts from local storage.
 
@@ -20,8 +18,8 @@ def load_enriched_posts(
     Pydantic model schema, and returns them as a DataFrame.
 
     Args:
-        latest_timestamp: Optional timestamp string to filter posts. If None,
-            loads all available data.
+        latest_timestamp: Timestamp string to filter posts, or ``None`` to load
+            all available data.
 
     Returns:
         DataFrame containing validated consolidated enriched posts.
