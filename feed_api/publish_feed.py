@@ -60,7 +60,7 @@ def main():
 
     response = client.com.atproto.repo.put_record(
         models.ComAtprotoRepoPutRecord.Data(  # noqa
-            repo=client.me.did,
+            repo=client.me.did,  # type: ignore
             collection=models.ids.AppBskyFeedGenerator,
             rkey=RECORD_NAME,
             record=models.AppBskyFeedGenerator.Record(

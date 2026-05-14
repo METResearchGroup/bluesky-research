@@ -104,7 +104,7 @@ def _sync_refresh_user_did_to_cached_feed():
     global user_did_to_cached_feed
     for user_did, feed_obj in latest_user_did_to_cached_feed.items():
         # feed objs have feed_dicts and feed_id
-        user_did_to_cached_feed[user_did] = feed_obj
+        user_did_to_cached_feed[user_did] = feed_obj  # type: ignore
     logger.info(f"Number of total user feeds: {len(user_did_to_cached_feed)}")
     logger.info("Initialized user DID to cache feed mapping.")
 
@@ -211,8 +211,8 @@ async def get_feed_skeleton(
         if e.status_code == 403:
             logger.error("Invalid or missing Authorization header. Using default feed.")
             raise
-    if not is_valid_user_did(requester_did):
-        logger.info(f"User DID not in the study: {requester_did}. Using default feed.")
+    if not is_valid_user_did(requester_did):  # type: ignore
+        logger.info(f"User DID not in the study: {requester_did}. Using default feed.")  # type: ignore
         requester_did = "default"
     logger.info(f"Validated request for DID={requester_did}...")
     request_cursor = cursor
@@ -307,7 +307,9 @@ async def get_default_feed_skeleton(
             f"Feed for {requester_did} not in local cache (should be). Loading from external cache + S3..."
         )  # noqa
         feed_dicts, feed_id = load_latest_user_feed(
-            user_did=requester_did, cursor=cursor, limit=limit
+            user_did=requester_did,
+            cursor=cursor,
+            limit=limit,  # type: ignore
         )
         logger.info(
             f"Loaded feed for {requester_did} from S3 + cache. Added to local store"

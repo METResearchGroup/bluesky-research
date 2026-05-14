@@ -6,9 +6,7 @@ import jwt
 import datetime
 import requests
 
-
 test_user_did = "did:plc:w5mjarupsl6ihdrzwgnzdh4"
-
 
 # Generate private key
 private_key = ec.generate_private_key(ec.SECP256K1())

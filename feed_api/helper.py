@@ -91,7 +91,7 @@ def load_all_latest_user_feeds_from_s3() -> dict[str, list[dict]]:
     return {
         user_did: {"feed_id": feed_id, "feed_dicts": feed_dicts}
         for user_did, feed_id, feed_dicts in zip(user_dids, feed_ids, user_feed_dicts)
-    }
+    }  # type: ignore
 
 
 def load_latest_user_feed_from_s3(user_did: str) -> tuple[list[dict], str]:
@@ -221,4 +221,4 @@ if __name__ == "__main__":
     s3_latest_feed = load_latest_user_feed_from_s3(user_did=user_did)
     res = load_all_latest_user_feeds_from_s3()
     assert latest_feed == s3_latest_feed
-    assert res[user_did]["feed_dicts"] == s3_latest_feed
+    assert res[user_did]["feed_dicts"] == s3_latest_feed  # type: ignore
