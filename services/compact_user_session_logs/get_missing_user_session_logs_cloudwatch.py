@@ -18,54 +18,58 @@ import pandas as pd
 from lib.aws.s3 import S3
 from lib.constants import timestamp_format
 from lib.log.logger import get_logger
+from services.compact_user_session_logs.constants import (
+    BACKFILL_CURSOR,
+    BACKFILL_FEED_LABEL,
+    BACKFILL_FEED_LENGTH,
+    BACKFILL_FILENAME_PREFIX,
+    BACKFILL_FILENAME_SUFFIX,
+    BACKFILL_LIMIT,
+    BACKFILL_LOOKBACK_DAYS,
+    CLOUDWATCH_INSIGHTS_QUERY_TEMPLATE,
+    CLOUDWATCH_LOG_GROUP_NAME,
+    CLOUDWATCH_LOG_STREAM_NAME,
+    CLOUDWATCH_TIMESTAMP_PARSE_FORMAT,
+    DID_PLC_REGEX,
+    INTERNAL_BACKFILL_DATE_COLUMN,
+    USER_SESSION_LOGS_S3_SEGMENT,
+)
 from services.participant_data.helper import get_all_users
-from services.participant_data.models import UserToBlueskyProfileModel
 
 logs_client = boto3.client("logs")
 s3 = S3()
 logger = get_logger(__name__)
 
-log_group_name = "ec2-feed-api-logs"
-log_stream_name = "i-0917ffe080d3d91f1/bsky-logs"
-query = f'fields @timestamp, @message | filter @logStream = "{log_stream_name}" | filter @message like /User DID not in the study/'
-# days = 10 # for an extended lookback, need to fetch a longer time period.
-days = 1  # during normal lookback, just need the past day or so.
-diff = timedelta(days=days)
-start_time = int((datetime.now() - diff).timestamp()) * 1000
-end_time = int(datetime.now().timestamp()) * 1000  # now
 
-study_users: list[UserToBlueskyProfileModel] = get_all_users()
-study_user_did_to_handle_map = {
-    user.bluesky_user_did: user.bluesky_handle for user in study_users
-}
-valid_dids = {user.bluesky_user_did for user in study_users}
-
-
-def extract_did(message):
-    did_pattern = r"did:plc:[a-z0-9]+"
-    match = re.search(did_pattern, message)
+def extract_did(message: str) -> str | None:
+    match = re.search(DID_PLC_REGEX, message)
     return match.group(0) if match else None
 
 
 def main() -> None:
-    # Start the query
+    valid_dids = {user.bluesky_user_did for user in get_all_users()}
+    diff = timedelta(days=BACKFILL_LOOKBACK_DAYS)
+    now = datetime.now()
+    start_time_ms = int((now - diff).timestamp()) * 1000
+    end_time_ms = int(now.timestamp()) * 1000
+
+    query = CLOUDWATCH_INSIGHTS_QUERY_TEMPLATE.format(stream=CLOUDWATCH_LOG_STREAM_NAME)
+
     response = logs_client.start_query(
-        logGroupName=log_group_name,
-        startTime=start_time,
-        endTime=end_time,
+        logGroupName=CLOUDWATCH_LOG_GROUP_NAME,
+        startTime=start_time_ms,
+        endTime=end_time_ms,
         queryString=query,
     )
 
     query_id = response["queryId"]
 
-    # Wait for the query to complete
     while True:
         response = logs_client.get_query_results(queryId=query_id)
         if response["status"] != "Running":
             break
         time.sleep(1)
 
-    # Process the results with pagination
     all_results = []
     next_token = None
 
@@ -91,7 +95,6 @@ def main() -> None:
 
     user_session_logs: list[dict] = []
 
-    # Process the results
     total_results = len(all_results)
     for idx, result in enumerate(all_results):
         if idx % 100 == 0:
@@ -104,44 +107,46 @@ def main() -> None:
         )
         did = extract_did(message)
         if did and did in valid_dids:
-            ts = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S.%f")
+            ts = datetime.strptime(timestamp, CLOUDWATCH_TIMESTAMP_PARSE_FORMAT)
             formatted_timestamp = ts.strftime(timestamp_format)
             date = ts.date().strftime("%Y-%m-%d")
             user_session_logs.append(
                 {
                     "timestamp": formatted_timestamp,
-                    "date": date,
+                    INTERNAL_BACKFILL_DATE_COLUMN: date,
                     "user_did": did,
                 }
             )
 
     if len(user_session_logs) == 0:
         logger.info(
-            f"No backfill user session logs to write for the past {days} days. Any missing log accesses are from non-study participants.Exiting..."
+            f"No backfill user session logs to write for the past {BACKFILL_LOOKBACK_DAYS} days. "
+            "Any missing log accesses are from non-study participants.Exiting..."
         )
         return
 
     df = pd.DataFrame(user_session_logs)
 
-    # group by date.  Then, write each one to a separate file in S3.
-    for date, group in df.groupby("date"):
-        uuid = str(uuid4())[:8]
-        filename = f"backfill_user_session_logs_{date}_{uuid}.jsonl"
+    for date, group in df.groupby(INTERNAL_BACKFILL_DATE_COLUMN):
+        short_uuid = str(uuid4())[:8]
+        filename = (
+            f"{BACKFILL_FILENAME_PREFIX}{date}_{short_uuid}{BACKFILL_FILENAME_SUFFIX}"
+        )
 
-        # drop "date" column
-        group = group.drop(columns=["date"])
+        group = group.drop(columns=[INTERNAL_BACKFILL_DATE_COLUMN])
 
-        # add new columns with default values, to match user_session_logs table.
-        group["cursor"] = "backfill"
-        group["limit"] = 50
-        group["feed_length"] = 50
-        group["feed"] = "default (backfill)"
+        group["cursor"] = BACKFILL_CURSOR
+        group["limit"] = BACKFILL_LIMIT
+        group["feed_length"] = BACKFILL_FEED_LENGTH
+        group["feed"] = BACKFILL_FEED_LABEL
 
-        # convert to list of dicts
         group_dicts: list[dict] = group.to_dict(orient="records")
 
-        # export to s3
-        key = os.path.join("user_session_logs", f"partition_date={date}", filename)  # noqa
+        key = os.path.join(
+            USER_SESSION_LOGS_S3_SEGMENT,
+            f"partition_date={date}",
+            filename,
+        )
         s3.write_dicts_jsonl_to_s3(data=group_dicts, key=key)
 
         logger.info(
@@ -152,9 +157,12 @@ def main() -> None:
             f"(Backfill date: {date}): Number of unique user_did values: {num_unique_user_dids}"
         )
 
-    logger.info(f"Finished backfilling user session logs for {days} days.")
     logger.info(
-        f"Start date: {df['date'].min()}.  End date: {df['date'].max()}. Total records: {len(df)}."
+        f"Finished backfilling user session logs for {BACKFILL_LOOKBACK_DAYS} days."
+    )
+    logger.info(
+        f"Start date: {df[INTERNAL_BACKFILL_DATE_COLUMN].min()}.  "
+        f"End date: {df[INTERNAL_BACKFILL_DATE_COLUMN].max()}. Total records: {len(df)}."
     )
 
 
