@@ -6,11 +6,10 @@ from typing import Literal, Optional
 import pandas as pd
 
 from lib.db.manage_local_data import load_data_from_local_storage
+from lib.datetime_utils import calculate_start_end_date_for_lookback
 from lib.log.logger import get_logger
-from services.backfill.posts_used_in_feeds.load_data import (
-    calculate_start_end_date_for_lookback,
-    load_posts_used_in_feeds,
-    load_preprocessed_posts_used_in_feeds_for_partition_date,
+from services.calculate_analytics.shared.constants import (
+    default_min_lookback_date,
     default_num_days_lookback,
 )
 from services.calculate_analytics.study_analytics.load_data.load_feeds import (
@@ -25,8 +24,112 @@ from services.calculate_analytics.study_analytics.load_data.load_labels import (
 from services.calculate_analytics.study_analytics.load_data.helper import (
     insert_missing_posts_to_backfill_queue,
 )
+from services.get_preprocessed_posts_used_in_feeds.join_feed_preprocessed_posts import (
+    load_posts_used_in_feeds_from_storage,
+    load_preprocessed_posts_used_in_feeds_for_partition_date,
+)
 
 logger = get_logger(__file__)
+
+
+def _resolve_posts_dataframe_for_hydration(
+    partition_date: str,
+    lookback_start_date: str,
+    lookback_end_date: str,
+    posts_df: Optional[pd.DataFrame],
+    load_unfiltered_posts: bool,
+) -> pd.DataFrame:
+    """Return preprocessed posts for labeling (caller-supplied or loaded)."""
+    if posts_df is not None:
+        logger.info(
+            f"Using provided posts dataframe for partition date {partition_date}"
+        )
+        return posts_df
+    if load_unfiltered_posts:
+        return load_preprocessed_posts_used_in_feeds_for_partition_date(
+            partition_date=partition_date,
+            lookback_start_date=lookback_start_date,
+            lookback_end_date=lookback_end_date,
+        )
+    logger.info(
+        f"Loading custom filtered preprocessed posts for partition date {partition_date}"
+    )
+    return load_filtered_preprocessed_posts(
+        partition_date=partition_date,
+        lookback_start_date=lookback_start_date,
+        lookback_end_date=lookback_end_date,
+    )
+
+
+def _dedupe_posts_and_label_frames(
+    posts_df: pd.DataFrame,
+    perspective_api_labels_df: pd.DataFrame,
+    ime_labels_df: pd.DataFrame,
+    sociopolitical_labels_df: pd.DataFrame,
+    valence_labels_df: pd.DataFrame,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    posts_deduped = posts_df.drop_duplicates(subset=["uri"])
+    perspective_deduped = perspective_api_labels_df.drop_duplicates(subset=["uri"])
+    ime_deduped = ime_labels_df.drop_duplicates(subset=["uri"])
+    sociopolitical_deduped = sociopolitical_labels_df.drop_duplicates(subset=["uri"])
+    valence_deduped = valence_labels_df.drop_duplicates(subset=["uri"])
+    return (
+        posts_deduped,
+        perspective_deduped,
+        ime_deduped,
+        sociopolitical_deduped,
+        valence_deduped,
+    )
+
+
+def _label_duplicate_columns(
+    posts_df: pd.DataFrame, label_dfs: list[pd.DataFrame]
+) -> list[str]:
+    duplicate_cols: list[str] = []
+    for label_df in label_dfs:
+        for col in label_df.columns:
+            if col in posts_df.columns and col != "uri":
+                duplicate_cols.append(col)
+    return duplicate_cols
+
+
+def _merge_label_dataframes(
+    posts_df: pd.DataFrame, deduped_label_dfs: list[pd.DataFrame]
+) -> pd.DataFrame:
+    posts_with_all_labels = posts_df
+    for label_df in deduped_label_dfs:
+        posts_with_all_labels = posts_with_all_labels.merge(
+            label_df, on="uri", how="left", suffixes=("", "_drop")
+        )
+        cols_to_drop = [
+            col for col in posts_with_all_labels.columns if col.endswith("_drop")
+        ]
+        if cols_to_drop:
+            posts_with_all_labels = posts_with_all_labels.drop(columns=cols_to_drop)
+    return posts_with_all_labels
+
+
+def _enqueue_missing_integration_labels(
+    posts_df: pd.DataFrame,
+    partition_date: str,
+    perspective_api_labels_df: pd.DataFrame,
+    sociopolitical_labels_df: pd.DataFrame,
+    ime_labels_df: pd.DataFrame,
+    valence_labels_df: pd.DataFrame,
+) -> None:
+    pairs: list[tuple[str, pd.DataFrame]] = [
+        ("ml_inference_perspective_api", perspective_api_labels_df),
+        ("ml_inference_sociopolitical", sociopolitical_labels_df),
+        ("ml_inference_ime", ime_labels_df),
+        ("ml_inference_valence_classifier", valence_labels_df),
+    ]
+    for integration, label_df in pairs:
+        missing_df = posts_df[~posts_df["uri"].isin(label_df["uri"])]
+        if len(missing_df) > 0:
+            print(
+                f"Found {len(missing_df)} missing {integration} labels for partition date = {partition_date}"
+            )
+            insert_missing_posts_to_backfill_queue(missing_df, integration)
 
 
 def load_filtered_preprocessed_posts(
@@ -45,6 +148,7 @@ def load_filtered_preprocessed_posts(
         lookback_start_date=lookback_start_date,
         lookback_end_date=lookback_end_date,
         table_columns=columns,
+        dedupe_uri_keep_first=True,
     )
     logger.info(f"Loaded {len(posts_df)} posts for partition date {partition_date}")
     # Note: Author filtering removed for testing - can be re-added later
@@ -63,28 +167,15 @@ def get_hydrated_posts_for_partition_date(
     lookback_start_date, lookback_end_date = calculate_start_end_date_for_lookback(
         partition_date=partition_date,
         num_days_lookback=default_num_days_lookback,
+        min_lookback_date=default_min_lookback_date,
     )
-    if posts_df is not None:
-        logger.info(
-            f"Using provided posts dataframe for partition date {partition_date}"
-        )
-    else:
-        if load_unfiltered_posts:
-            df: pd.DataFrame = load_preprocessed_posts_used_in_feeds_for_partition_date(
-                partition_date=partition_date,
-                lookback_start_date=lookback_start_date,
-                lookback_end_date=lookback_end_date,
-            )
-        else:
-            logger.info(
-                f"Loading custom filtered preprocessed posts for partition date {partition_date}"
-            )
-            df: pd.DataFrame = load_filtered_preprocessed_posts(
-                partition_date=partition_date,
-                lookback_start_date=lookback_start_date,
-                lookback_end_date=lookback_end_date,
-            )
-        posts_df = df
+    posts_df = _resolve_posts_dataframe_for_hydration(
+        partition_date=partition_date,
+        lookback_start_date=lookback_start_date,
+        lookback_end_date=lookback_end_date,
+        posts_df=posts_df,
+        load_unfiltered_posts=load_unfiltered_posts,
+    )
 
     perspective_api_labels_df: pd.DataFrame = get_perspective_api_labels_for_posts(
         posts=posts_df,
@@ -113,99 +204,61 @@ def get_hydrated_posts_for_partition_date(
         lookback_end_date=lookback_end_date,
     )
 
-    # deduping
-    posts_df = posts_df.drop_duplicates(subset=["uri"])
-    perspective_api_labels_df = perspective_api_labels_df.drop_duplicates(
-        subset=["uri"]
+    (
+        posts_df,
+        perspective_api_labels_df,
+        ime_labels_df,
+        sociopolitical_labels_df,
+        valence_labels_df,
+    ) = _dedupe_posts_and_label_frames(
+        posts_df,
+        perspective_api_labels_df,
+        ime_labels_df,
+        sociopolitical_labels_df,
+        valence_labels_df,
     )
-    ime_labels_df = ime_labels_df.drop_duplicates(subset=["uri"])
-    sociopolitical_labels_df = sociopolitical_labels_df.drop_duplicates(subset=["uri"])
-    valence_labels_df = valence_labels_df.drop_duplicates(subset=["uri"])
 
-    # Left join each set of labels against the posts dataframe
-    # This ensures we keep all posts even if they don't have certain labels
-    # Keep only the left dataframe's columns when there are duplicates
-    # Get list of duplicate columns between posts_df and each of the integrations.
-    # These are columns like "text' and whatnot.
-    duplicate_cols = [
-        col
-        for col in perspective_api_labels_df.columns
-        if col in posts_df.columns and col != "uri"
-    ]
-
-    duplicate_cols = []
-
-    for label_df in [
+    label_dfs_for_dup_check = [
         perspective_api_labels_df,
         sociopolitical_labels_df,
         ime_labels_df,
         valence_labels_df,
-    ]:
-        for col in label_df.columns:
-            if col in posts_df.columns and col != "uri":
-                duplicate_cols.append(col)
+    ]
+    duplicate_cols = _label_duplicate_columns(posts_df, label_dfs_for_dup_check)
 
-    # Drop duplicate columns from each integration df before merging.
     perspective_api_labels_df_deduped = perspective_api_labels_df.drop(
         columns=duplicate_cols
-    )  # noqa
+    )
     ime_labels_df_deduped = ime_labels_df.drop(columns=duplicate_cols)
     sociopolitical_labels_df_deduped = sociopolitical_labels_df.drop(
         columns=duplicate_cols
-    )  # noqa
-    valence_labels_df_deduped = valence_labels_df.drop(columns=duplicate_cols)  # noqa
+    )
+    valence_labels_df_deduped = valence_labels_df.drop(columns=duplicate_cols)
 
-    # merge the dfs together.
-    posts_with_all_labels = posts_df
+    posts_with_all_labels = _merge_label_dataframes(
+        posts_df,
+        [
+            perspective_api_labels_df_deduped,
+            sociopolitical_labels_df_deduped,
+            ime_labels_df_deduped,
+            valence_labels_df_deduped,
+        ],
+    )
 
-    for label_df in [
-        perspective_api_labels_df_deduped,
-        sociopolitical_labels_df_deduped,
-        ime_labels_df_deduped,
-        valence_labels_df_deduped,
-    ]:
-        # Merge with suffixes to handle duplicate columns
-        posts_with_all_labels = posts_with_all_labels.merge(
-            label_df, on="uri", how="left", suffixes=("", "_drop")
-        )
-        # Drop columns with '_drop' suffix
-        cols_to_drop = [
-            col for col in posts_with_all_labels.columns if col.endswith("_drop")
-        ]
-        if cols_to_drop:
-            posts_with_all_labels = posts_with_all_labels.drop(columns=cols_to_drop)
-
-    # get missing labels.
-    missing_perspective_api_labels_df = posts_df[
-        ~posts_df["uri"].isin(perspective_api_labels_df["uri"])
-    ]
-    missing_sociopolitical_labels_df = posts_df[
-        ~posts_df["uri"].isin(sociopolitical_labels_df["uri"])
-    ]
-    missing_ime_labels_df = posts_df[~posts_df["uri"].isin(ime_labels_df["uri"])]
-    missing_valence_labels_df = posts_df[
-        ~posts_df["uri"].isin(valence_labels_df["uri"])
-    ]
-
-    for integration, missing_df in [
-        ("ml_inference_perspective_api", missing_perspective_api_labels_df),
-        ("ml_inference_sociopolitical", missing_sociopolitical_labels_df),
-        ("ml_inference_ime", missing_ime_labels_df),
-        ("ml_inference_valence_classifier", missing_valence_labels_df),
-    ]:
-        if len(missing_df) > 0:
-            print(
-                f"Found {len(missing_df)} missing {integration} labels for partition date = {partition_date}"
-            )
-            insert_missing_posts_to_backfill_queue(missing_df, integration)
+    _enqueue_missing_integration_labels(
+        posts_df,
+        partition_date,
+        perspective_api_labels_df,
+        sociopolitical_labels_df,
+        ime_labels_df,
+        valence_labels_df,
+    )
 
     del posts_df
     del perspective_api_labels_df
     del ime_labels_df
     del sociopolitical_labels_df
-    del missing_perspective_api_labels_df
-    del missing_sociopolitical_labels_df
-    del missing_ime_labels_df
+    del valence_labels_df
     gc.collect()
 
     logger.info(
@@ -281,7 +334,9 @@ def load_posts_used_in_feeds_by_source(
     source: Literal["firehose", "most_liked"],
 ) -> pd.DataFrame:
     """Load posts used in feeds by source."""
-    posts_used_in_feeds_df: pd.DataFrame = load_posts_used_in_feeds(partition_date)
+    posts_used_in_feeds_df: pd.DataFrame = load_posts_used_in_feeds_from_storage(
+        partition_date
+    )
     base_pool_posts: pd.DataFrame = load_preprocessed_posts_by_source(
         partition_date=partition_date,
         lookback_start_date=lookback_start_date,

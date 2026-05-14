@@ -14,7 +14,7 @@ For each `partition_date`, loads `like` records from `raw_sync` for that day (st
 
 ## How the key files relate
 
-Upstream data is `raw_sync` with `custom_args={"record_type": "like"|"post"|"reply"|"repost"}`. Lookback windowing uses `calculate_start_end_date_for_lookback` from `services.backfill.posts_used_in_feeds.load_data` (same import pattern as [`get_preprocessed_posts_used_in_feeds`](../get_preprocessed_posts_used_in_feeds/helper.py)); the date math is implemented in [`lib/datetime_utils.py`](../../lib/datetime_utils.py).
+Upstream data is `raw_sync` with `custom_args={"record_type": "like"|"post"|"reply"|"repost"}`. Lookback windowing uses `calculate_start_end_date_for_lookback` from [`lib/datetime_utils.py`](../../lib/datetime_utils.py) (same function as [`get_preprocessed_posts_used_in_feeds`](../get_preprocessed_posts_used_in_feeds/helper.py), with service-specific day counts from `constants.py`).
 
 ### Match likes to raw records for one day
 

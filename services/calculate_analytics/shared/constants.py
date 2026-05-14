@@ -2,6 +2,8 @@
 
 import os
 
+from lib.constants import FEED_LOOKBACK_DAYS_DURING_STUDY
+
 shared_assets_directory = os.path.dirname(os.path.abspath(__file__))
 
 # end dates of each week (inclusive).
@@ -71,7 +73,7 @@ STUDY_CONTENT_EARLIEST_LOOKBACK_DATE = "2024-09-15"
 exclude_partition_dates = ["2024-10-08"]
 
 # Lookback for loading labels by partition date (e.g. get_labels_for_partition_date).
-default_num_days_lookback = 5
+default_num_days_lookback = FEED_LOOKBACK_DAYS_DURING_STUDY
 default_min_lookback_date = STUDY_CONTENT_EARLIEST_LOOKBACK_DATE
 
 integrations_list = ["perspective_api", "sociopolitical", "ime", "valence_classifier"]
