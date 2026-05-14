@@ -1,225 +1,153 @@
-# Bluesky Research Orchestration Pipeline Documentation
+# Orchestration
 
-Orchestration logic, defined using **Prefect** for workflow orchestration and **SLURM** for job scheduling on the HPC cluster. Each pipeline consists of:
-- A main orchestration Python script (`orchestration/*.py`)
-- A SLURM submission script (`orchestration/submit_*_job.sh`) 
-- Component pipelines with their own handlers and bash scripts
-- Associated services that perform the actual work
-
-## Pipeline Overview
-
-The system processes data from Bluesky's firehose through multiple stages: ingestion → preprocessing → enrichment → feed generation → analytics.
+Prefect flows under this directory schedule work on the Quest HPC cluster: each flow submits SLURM jobs via the bash scripts in [`pipelines/`](../pipelines/).
 
 ---
 
-## 1. Sync Pipeline
+## Prefect DAGs
 
-**Purpose**: Ingests real-time data from Bluesky's firehose stream and syncs popular posts from external feeds.
+### End-to-end
 
-**Orchestration File**: `orchestration/sync_pipeline.py`
-**Trigger Script**: `orchestration/submit_sync_pipeline_job.sh`
-**Schedule**: Long-running processes (not cron-based)
+```mermaid
+flowchart TB
+  SP["Sync pipeline<br/>sync_data_pipeline"]
+  ISP["Integrations sync<br/>integrations_sync_pipeline"]
+  PDP["Production data pipeline<br/>production_data_pipeline"]
+  VEP["Vector embeddings<br/>vector_embeddings_pipeline"]
+  RP["Recommendation pipeline<br/>recommendation_pipeline"]
+  CP["Compaction pipeline<br/>compaction_pipeline"]
+  AP["Analytics pipeline<br/>analytics_pipeline"]
 
-### Component Services:
-1. **Firehose Sync** (`sync_firehose()`)
-   - **Pipeline**: `pipelines/sync_post_records/firehose/`
-   - **Handler**: `pipelines/sync_post_records/firehose/handler.py`
-   - **Trigger**: `pipelines/sync_post_records/firehose/submit_job.sh`
-   - **Service**: `services/sync/stream/` - Connects to Bluesky's real-time firehose stream
-   - **Purpose**: Continuously ingests posts, likes, follows, and other activities from Bluesky's real-time stream
-
-2. **Firehose Data Writer** (`write_firehose_data()`)
-   - **Pipeline**: `pipelines/sync_post_records/firehose/`
-   - **Trigger**: `pipelines/sync_post_records/firehose/submit_firehose_writes_job.sh`
-   - **Service**: `services/sync/jetstream/` - Writes streamed data to persistent storage
-   - **Purpose**: Persists the streamed firehose data to local storage as .parquet files
-
-### Execution:
-Both components run in parallel (`wait_for=False`) as long-running processes.
-
----
-
-## 2. Integrations Sync Pipeline
-
-**Purpose**: Syncs popular/trending posts from Bluesky's external feeds and APIs.
-
-**Orchestration File**: `orchestration/integrations_sync_pipeline.py`
-**Trigger Script**: `orchestration/submit_integrations_sync_pipeline_job.sh`
-**Schedule**: Every 2 hours
-
-### Component Services:
-1. **Most Liked Posts Sync** (`sync_most_liked()`)
-   - **Pipeline**: `pipelines/sync_post_records/most_liked/`
-   - **Handler**: `pipelines/sync_post_records/most_liked/handler.py`
-   - **Trigger**: `pipelines/sync_post_records/most_liked/submit_job.sh`
-   - **Service**: `services/sync/most_liked_posts/` - Queries Bluesky API for trending content
-   - **Purpose**: Fetches posts from popular feeds like "What's Hot" to capture trending content that might be missed by the firehose
-
-### Execution:
-Runs as a Prefect service with 2-hour intervals.
+  SP -.->|"raw firehose / activity parquet"| PDP
+  ISP -.->|"most-liked payloads"| PDP
+  PDP -.->|"preprocessed posts & queues"| VEP
+  PDP -.->|"enrichment + feed inputs"| RP
+  PDP -.->|"exported service partitions"| CP
+  SP -.->|"sync exports"| CP
+  ISP -.->|"integrations exports"| CP
+  RP -.->|"feed exports"| CP
+```
 
 ---
 
-## 3. Data Pipeline
+### 1. Sync pipeline
 
-**Purpose**: Processes raw data through preprocessing, ML inference, and enrichment consolidation.
+Runs firehose ingest and the jetstream writer as two independent long-running SLURM tasks so streaming capture and persistence proceed in parallel.
 
-**Orchestration File**: `orchestration/data_pipeline.py`
-**Trigger Script**: `orchestration/submit_data_pipeline_job.sh`
-**Schedule**: Every 2 hours
+| Prefect flow | SLURM trigger |
+| --- | --- |
+| [`sync_pipeline.py`](sync_pipeline.py) | [`submit_sync_pipeline_job.sh`](submit_sync_pipeline_job.sh) |
 
-### Component Services:
-
-1. **Preprocess Raw Data** (`preprocess_raw_data()`)
-   - **Pipeline**: `pipelines/preprocess_raw_data/`
-   - **Handler**: `pipelines/preprocess_raw_data/handler.py`
-   - **Trigger**: `pipelines/preprocess_raw_data/submit_job.sh`
-   - **Service**: `services/preprocess_raw_data/` - Filters, cleans, and transforms raw sync data
-   - **Purpose**: Filters raw posts, removes spam/bots, classifies content, and prepares data for downstream processing
-
-2. **Calculate Superposters** (`calculate_superposters()`)
-   - **Pipeline**: `pipelines/calculate_superposters/`
-   - **Handler**: `pipelines/calculate_superposters/handler.py`
-   - **Trigger**: `pipelines/calculate_superposters/submit_job.sh`
-   - **Service**: `services/calculate_superposters/` - Identifies users who post excessively
-   - **Purpose**: Creates daily lists of users who post too frequently (for feed ranking penalties)
-
-3. **Perspective API Classification** (`run_ml_inference_perspective_api()`)
-   - **Pipeline**: `pipelines/classify_records/perspective_api/`
-   - **Handler**: `pipelines/classify_records/perspective_api/handler.py`
-   - **Trigger**: `pipelines/classify_records/perspective_api/submit_job.sh`
-   - **Service**: `services/ml_inference/perspective_api/` - Toxicity and content moderation scoring
-   - **Purpose**: Scores posts for toxicity, harassment, and other harmful content using Google's Perspective API
-
-4. **Sociopolitical Classification** (`run_ml_inference_sociopolitical()`) - *Currently disabled*
-   - **Pipeline**: `pipelines/classify_records/sociopolitical/`
-   - **Handler**: `pipelines/classify_records/sociopolitical/handler.py`
-   - **Trigger**: `pipelines/classify_records/sociopolitical/submit_job.sh`
-   - **Service**: `services/ml_inference/sociopolitical/` - Political content classification
-   - **Purpose**: Classifies posts for political content and orientation
-
-5. **IME Classification** (`run_ml_inference_ime()`) - *No consolidation dependency*
-   - **Pipeline**: `pipelines/classify_records/ime/`
-   - **Handler**: `pipelines/classify_records/ime/handler.py`
-   - **Trigger**: `pipelines/classify_records/ime/submit_job.sh`
-   - **Service**: `services/ml_inference/ime/` - Individualized Moral Equivalence scoring
-   - **Purpose**: Scores posts for moral reasoning and ethical content
-
-6. **Consolidate Enrichment Integrations** (`consolidate_enrichment_integrations()`)
-   - **Pipeline**: `pipelines/consolidate_enrichment_integrations/`
-   - **Handler**: `pipelines/consolidate_enrichment_integrations/handler.py`
-   - **Trigger**: `pipelines/consolidate_enrichment_integrations/submit_job.sh`
-   - **Service**: `services/consolidate_enrichment_integrations/` - Merges all ML inference results
-   - **Purpose**: Combines results from all ML classifiers into consolidated enriched post records
-
-### Execution Flow:
-1. **Preprocessing** runs first
-2. **Superposters + Perspective API** run in parallel after preprocessing completes
-3. **Consolidation** runs after all parallel jobs complete (waits for superposters and Perspective API)
+```mermaid
+flowchart LR
+  SF[sync_firehose]
+  WF[write_firehose_data]
+```
 
 ---
 
-## 4. Recommendation Pipeline
+### 2. Integrations sync pipeline
 
-**Purpose**: Generates personalized content feeds for users using ranking and scoring algorithms.
+Pulls curated Bluesky trending and most-liked feeds on a fixed interval so popular content missing from the firehose slice is ingested periodically.
 
-**Orchestration File**: `orchestration/recommendation_pipeline.py`
-**Trigger Script**: `orchestration/submit_recommendation_pipeline_job.sh`
-**Schedule**: Every 4 hours
+| Prefect flow | SLURM trigger |
+| --- | --- |
+| [`integrations_sync_pipeline.py`](integrations_sync_pipeline.py) | [`submit_integrations_sync_pipeline_job.sh`](submit_integrations_sync_pipeline_job.sh) |
 
-### Component Services:
-1. **Rank Score Feeds** (`rank_score_feeds()`)
-   - **Pipeline**: `pipelines/rank_score_feeds/`
-   - **Handler**: `pipelines/rank_score_feeds/handler.py`
-   - **Trigger**: `pipelines/rank_score_feeds/submit_job.sh`
-   - **Service**: `services/rank_score_feeds/` - Ranking algorithm and feed generation
-   - **Purpose**: Takes posts from the last 3 days, applies scoring algorithms, ranks them, and generates personalized feeds exported as .jsonl files to S3
-
-### Additional Components:
-- **Feed TTL Management**: `pipelines/rank_score_feeds/submit_feed_ttl_job.sh` - Cleans up old feed files
-
-### Execution:
-Single task that handles the complete feed generation workflow.
+```mermaid
+flowchart TD
+  ML[sync_most_liked]
+```
 
 ---
 
-## 5. Compaction Pipeline
+### 3. Production data pipeline
 
-**Purpose**: Optimizes data storage by compacting files and creating data snapshots.
+Runs preprocessing once per tick, fans out superposter detection and Perspective, sociopolitical, and IME classifiers in parallel, then merges all integration outputs in consolidation.
 
-**Orchestration File**: `orchestration/compaction_pipeline.py`
-**Trigger Script**: `orchestration/submit_compaction_pipeline_job.sh`
-**Schedule**: Twice daily at 7 AM and 7 PM (`cron="0 7,19 * * *"`)
+| Prefect flow | SLURM trigger |
+| --- | --- |
+| [`data_pipeline.py`](data_pipeline.py) | [`submit_data_pipeline_job.sh`](submit_data_pipeline_job.sh) |
 
-### Component Services:
-1. **Compact All Services** (`compact_all_services()`)
-   - **Pipeline**: `pipelines/compact_all_services/`
-   - **Handler**: `pipelines/compact_all_services/handler.py`
-   - **Trigger**: `pipelines/compact_all_services/submit_job.sh`
-   - **Service**: `services/compact_all_services/local_compaction.py` (scheduled handler: `pipelines/compact_all_services/handler.py`)
-   - **Purpose**: Rewrites local partitioned datasets per service (export + prune old files). Optional S3/Athena paths exist under `s3_compaction.py` / `migration.py` for manual use.
+```mermaid
+flowchart TD
+  PRE[preprocess_raw_data]
+  SP[calculate_superposters]
+  PERS[run_ml_inference_perspective_api]
+  SOC[run_ml_inference_sociopolitical]
+  IME[run_ml_inference_ime]
+  CON[consolidate_enrichment_integrations]
 
-2. **Snapshot Data** (`snapshot_data()`)
-   - **Pipeline**: `pipelines/snapshot_data/`
-   - **Handler**: `pipelines/snapshot_data/handler.py`
-   - **Trigger**: `pipelines/snapshot_data/submit_job.sh`
-   - **Service**: `services/snapshot_data/` - Creates point-in-time data snapshots
-   - **Purpose**: Creates snapshots of current data state for backup and analytical purposes
-
-### Execution Flow:
-1. **Compaction** runs first
-2. **Snapshot** runs after compaction completes
-
----
-
-## 6. Analytics Pipeline
-
-**Purpose**: Processes user activity data and generates analytics reports.
-
-**Orchestration File**: `orchestration/analytics_pipeline.py`
-**Trigger Script**: `orchestration/submit_analytics_pipeline_job.sh`
-**Schedule**: Daily at 8 AM (`cron="0 8 * * *"`)
-
-### Component Services:
-1. **Compact User Session Logs** (`compact_user_session_logs()`)
-   - **Pipeline**: `pipelines/compact_user_session_logs/`
-   - **Handler**: `pipelines/compact_user_session_logs/handler.py`
-   - **Trigger**: `pipelines/compact_user_session_logs/submit_job.sh`
-   - **Service**: `services/compact_user_session_logs/` - User activity log processing
-   - **Purpose**: Compacts and processes user interaction logs from the application
-
-2. **Aggregate Study User Activities** (`aggregate_study_user_activities()`)
-   - **Pipeline**: `pipelines/aggregate_study_user_activities/`
-   - **Handler**: `pipelines/aggregate_study_user_activities/handler.py`
-   - **Trigger**: `pipelines/aggregate_study_user_activities/submit_job.sh`
-   - **Service**: `services/aggregate_study_user_activities/` - User activity aggregation
-   - **Purpose**: Aggregates all study user activities into comprehensive analytics tables
-
-### Execution Flow:
-1. **Session log compaction** runs first
-2. **Activity aggregation** runs after compaction completes
+  PRE --> SP
+  PRE --> PERS
+  PRE --> SOC
+  PRE --> IME
+  SP --> CON
+  PERS --> CON
+  SOC --> CON
+  IME --> CON
+```
 
 ---
 
-## Infrastructure Notes
+### 4. Vector embeddings pipeline
 
-### SLURM Configuration
-All jobs use the Quest HPC cluster with:
-- Account: `p32375`
-- Python environment: `bluesky_research` conda environment
-- Logging: Structured logs in `/projects/p32375/bluesky-research/lib/log/`
-- Error notifications: Email alerts on job failures
+Runs GPU-backed post embedding generation from preprocessed material. No `submit_*` orchestration shell script ships next to this flow; run [`vector_embeddings_pipeline.py`](vector_embeddings_pipeline.py) on the cluster like the other entrypoints or keep it on Prefect `serve()`.
 
-### Data Flow
-1. **Raw Data**: Firehose → Local storage (parquet files)
-2. **Processed Data**: Preprocessing → Enrichment → Consolidation
-3. **Analytics**: Compaction → Aggregation → Reporting
-4. **Feeds**: Ranking → S3 export → Application consumption
+| Prefect flow | SLURM trigger |
+| --- | --- |
+| [`vector_embeddings_pipeline.py`](vector_embeddings_pipeline.py) | — |
 
-### Scheduling Summary
-- **Sync Pipeline**: Continuous (long-running)
-- **Integrations Sync**: Every 2 hours
-- **Data Pipeline**: Every 2 hours
-- **Recommendation Pipeline**: Every 4 hours
-- **Compaction Pipeline**: Twice daily (7 AM, 7 PM)
-- **Analytics Pipeline**: Daily (8 AM)
+```mermaid
+flowchart TD
+  EMB[generate_vector_embeddings]
+```
+
+---
+
+### 5. Recommendation pipeline
+
+Scores and ranks candidate posts and exports personalized feeds for consumption downstream.
+
+| Prefect flow | SLURM trigger |
+| --- | --- |
+| [`recommendation_pipeline.py`](recommendation_pipeline.py) | [`submit_recommendation_pipeline_job.sh`](submit_recommendation_pipeline_job.sh) |
+
+```mermaid
+flowchart TD
+  RANK[rank_score_feeds]
+```
+
+---
+
+### 6. Compaction pipeline
+
+Rewrites partitioned exports for configured services, then snapshots designated trees once compaction finishes.
+
+| Prefect flow | SLURM trigger |
+| --- | --- |
+| [`compaction_pipeline.py`](compaction_pipeline.py) | [`submit_compaction_pipeline_job.sh`](submit_compaction_pipeline_job.sh) |
+
+```mermaid
+flowchart TD
+  COMP[compact_all_services]
+  SNAP[snapshot_data]
+  COMP --> SNAP
+```
+
+---
+
+### 7. Analytics pipeline
+
+Compacts user session telemetry first, then aggregates study user activity tables used for analytics and exports.
+
+| Prefect flow | SLURM trigger |
+| --- | --- |
+| [`analytics_pipeline.py`](analytics_pipeline.py) | [`submit_analytics_pipeline_job.sh`](submit_analytics_pipeline_job.sh) |
+
+```mermaid
+flowchart TD
+  CUS[compact_user_session_logs]
+  AGG[aggregate_study_user_activities]
+  CUS --> AGG
+```

@@ -1,62 +1,43 @@
 # Pipelines
 
-This directory contains the individual pipeline components that are run in production. The pipelines are orchestrated in `orchestration/`. Each pipeline component is mapped to the orchestration pipeline that uses it.
+This directory holds the pipelines for the project. The orchestration DAGs run the pipeline code, and each pipeline exposes a `handler.py` that is a thin indirection layer to the `services/` logic (this is a remnant of a deprecated architectural decision around deploying each service as a lambda; else we would just remove the `pipelines/` folder and have the DAGs trigger from `services/` directly).
 
-## Pipeline Components and Their Orchestration Usage
+| Category | What belongs here |
+| --- | --- |
+| Production pipeline | Job directories reached from Prefect flows under [`orchestration/`](../orchestration/). Flows call `run_slurm_job` on the `submit_job.sh` (or equivalent) for these paths. |
+| Everything else | Backfill and coordination jobs, optional / research classifiers, and other handlers kept off the scheduled production DAGs. |
 
-### Used by Sync Pipeline (`orchestration/sync_pipeline.py`)
-- **sync_post_records/firehose/** - Firehose data ingestion and writing
-- **sync_post_records/most_liked/** - Used by Integrations Sync Pipeline (`orchestration/integrations_sync_pipeline.py`)
+DAG relationships and task order are summarized in [`orchestration/README.md`](../orchestration/README.md).
 
-### Used by Integrations Sync Pipeline (`orchestration/integrations_sync_pipeline.py`)
-- **sync_post_records/most_liked/** - Syncs popular posts from external feeds
+---
 
-### Used by Data Pipeline (`orchestration/data_pipeline.py`)
-- **preprocess_raw_data/** - Preprocesses and filters raw sync data
-- **calculate_superposters/** - Identifies users who post excessively
-- **classify_records/perspective_api/** - Toxicity classification using Google's Perspective API
-- **classify_records/sociopolitical/** - Political content classification (currently disabled)
-- **classify_records/ime/** - Individualized Moral Equivalence scoring
-- **consolidate_enrichment_integrations/** - Merges all ML inference results
+## Production pipeline
 
-### Used by Recommendation Pipeline (`orchestration/recommendation_pipeline.py`)
-- **rank_score_feeds/** - Generates personalized feeds using ranking algorithms
+| Pipeline | Related DAG | Related `services/` package |
+| --- | --- | --- |
+| [`sync_post_records/firehose/`](sync_post_records/firehose/) (ingest: `submit_job.sh`) | Sync pipeline — [`sync_pipeline.py`](../orchestration/sync_pipeline.py) (`sync_data_pipeline`), task `sync_firehose` | [`sync/stream/`](../services/sync/stream/README.md) |
+| [`sync_post_records/firehose/`](sync_post_records/firehose/) (persistence: `submit_firehose_writes_job.sh`) | Sync pipeline — [`sync_pipeline.py`](../orchestration/sync_pipeline.py), task `write_firehose_data` | [`sync/jetstream/`](../services/sync/README.md) *(see [`sync/README.md`](../services/sync/README.md))* |
+| [`sync_post_records/most_liked/`](sync_post_records/most_liked/) | Integrations Sync Pipeline — [`integrations_sync_pipeline.py`](../orchestration/integrations_sync_pipeline.py), task `sync_most_liked` | [`sync/most_liked_posts/`](../services/sync/README.md) *(see [`sync/README.md`](../services/sync/README.md))* |
+| [`preprocess_raw_data/`](preprocess_raw_data/) | Production data pipeline — [`data_pipeline.py`](../orchestration/data_pipeline.py), task `preprocess_raw_data` | [`preprocess_raw_data/`](../services/preprocess_raw_data/README.md) |
+| [`calculate_superposters/`](calculate_superposters/) | Production data pipeline — [`data_pipeline.py`](../orchestration/data_pipeline.py), task `calculate_superposters` | [`calculate_superposters/`](../services/calculate_superposters/README.md) |
+| [`classify_records/perspective_api/`](classify_records/perspective_api/) | Production data pipeline — [`data_pipeline.py`](../orchestration/data_pipeline.py), task `run_ml_inference_perspective_api` | [`ml_inference/perspective_api/`](../services/ml_inference/perspective_api/README.md) |
+| [`classify_records/sociopolitical/`](classify_records/sociopolitical/) | Production data pipeline — [`data_pipeline.py`](../orchestration/data_pipeline.py), task `run_ml_inference_sociopolitical` | [`ml_inference/sociopolitical/`](../services/ml_inference/sociopolitical/README.md) |
+| [`classify_records/ime/`](classify_records/ime/) | Production data pipeline — [`data_pipeline.py`](../orchestration/data_pipeline.py), task `run_ml_inference_ime` | [`ml_inference/ime/`](../services/ml_inference/ime/README.md) |
+| [`consolidate_enrichment_integrations/`](consolidate_enrichment_integrations/) | Production data pipeline — [`data_pipeline.py`](../orchestration/data_pipeline.py), task `consolidate_enrichment_integrations` | [`consolidate_enrichment_integrations/`](../services/consolidate_enrichment_integrations/README.md) |
+| [`generate_vector_embeddings/`](generate_vector_embeddings/) | Vector embeddings pipeline — [`vector_embeddings_pipeline.py`](../orchestration/vector_embeddings_pipeline.py), task `generate_vector_embeddings` | [`generate_vector_embeddings/`](../services/generate_vector_embeddings/) *(helper + models; no package README)* |
+| [`rank_score_feeds/`](rank_score_feeds/) | Recommendation pipeline — [`recommendation_pipeline.py`](../orchestration/recommendation_pipeline.py), task `rank_score_feeds` | [`rank_score_feeds/`](../services/rank_score_feeds/README.md) |
+| [`compact_all_services/`](compact_all_services/) | Compaction pipeline — [`compaction_pipeline.py`](../orchestration/compaction_pipeline.py), task `compact_all_services` | [`compact_all_services/`](../services/compact_all_services/README.md) |
+| [`snapshot_data/`](snapshot_data/) | Compaction pipeline — [`compaction_pipeline.py`](../orchestration/compaction_pipeline.py), task `snapshot_data` | [`snapshot_data/`](../services/snapshot_data/README.md) |
+| [`compact_user_session_logs/`](compact_user_session_logs/) | Analytics pipeline — [`analytics_pipeline.py`](../orchestration/analytics_pipeline.py), task `compact_user_session_logs` | [`compact_user_session_logs/`](../services/compact_user_session_logs/README.md) |
+| [`aggregate_study_user_activities/`](aggregate_study_user_activities/) | Analytics pipeline — [`analytics_pipeline.py`](../orchestration/analytics_pipeline.py), task `aggregate_study_user_activities` | [`aggregate_study_user_activities/`](../services/aggregate_study_user_activities/) *(no README)* |
 
-### Used by Compaction Pipeline (`orchestration/compaction_pipeline.py`)
-- **compact_all_services/** - Compacts data files across all services
-- **snapshot_data/** - Creates point-in-time data snapshots
+---
 
-### Used by Analytics Pipeline (`orchestration/analytics_pipeline.py`)
-- **compact_user_session_logs/** - Compacts user interaction logs
-- **aggregate_study_user_activities/** - Aggregates study user activities for analytics
+## Everything else
 
-### Standalone/Utility Pipelines (Not Used by Main Orchestration)
-- **add_users_to_study/** [STANDALONE] - Utilities for adding users to research studies
-- **backfill_records_coordination/** [STANDALONE] - Coordinates backfill operations for historical data
-- **backfill_sync/** [STANDALONE] - Syncs historical records for backfill operations
-- **classify_records/valence_classifier/** [STANDALONE] - Valence classification (not integrated into main pipeline)
-- **generate_vector_embeddings/** [STANDALONE] - Generates embeddings for posts (not in main pipeline)
-- **get_existing_user_social_network/** [STANDALONE] - Retrieves user social network data
-- **write_cache_buffers/** [STANDALONE] - Writes cache buffers (not in main orchestration)
-
-### Deprecated Pipelines
-- **deprecated/compact_dedupe_data/** [DEPRECATED] - Old data compaction logic
-- **deprecated/consume_sqs_messages/** [DEPRECATED] - Legacy SQS message processing
-- **deprecated/create_feeds.py** [DEPRECATED] - Old feed creation logic
-- **deprecated/filter_posts.py** [DEPRECATED] - Legacy post filtering
-- **deprecated/generate_features.py** [DEPRECATED] - Old feature generation
-- **deprecated/update_muted_users/** [DEPRECATED] - Legacy muted users update
-- **deprecated/update_network_connections/** [DEPRECATED] - Old network connection updates
-- **deprecated/update_user_bluesky_engagement/** [DEPRECATED] - Legacy engagement updates
-- **deprecated/write_latest_feeds_to_s3/** [DEPRECATED] - Old S3 feed writing logic
-
-## Pipeline Architecture Summary
-
-The main orchestration flow follows this pattern:
-1. **Data Ingestion**: Sync Pipeline + Integrations Sync Pipeline
-2. **Data Processing**: Data Pipeline (preprocessing → ML inference → consolidation)
-3. **Feed Generation**: Recommendation Pipeline
-4. **Data Management**: Compaction Pipeline (storage optimization)
-5. **Analytics**: Analytics Pipeline (user activity analysis)
-
-Standalone pipelines provide utility functions for research operations, backfilling, and one-off tasks that don't fit into the main production workflow.
+| Pipeline | Related DAG | Related `services/` package |
+| --- | --- | --- |
+| [`backfill_records_coordination/`](backfill_records_coordination/) | Not part of a scheduled Prefect DAG; coordination / integration-specific backfill entrypoints | [`backfill/`](../services/backfill/README.md) |
+| [`backfill_sync/`](backfill_sync/) | Not part of a scheduled Prefect DAG; invoked for historical record sync | [`backfill/`](../services/backfill/README.md) |
+| [`classify_records/valence_classifier/`](classify_records/valence_classifier/) | Not on the production data pipeline; run via backfill / ad hoc jobs | [`ml_inference/valence_classifier/`](../services/ml_inference/valence_classifier/README.md) |
+| [`classify_records/intergroup/`](classify_records/intergroup/) | Not on the production data pipeline; research / dedicated jobs | [`ml_inference/intergroup/`](../services/ml_inference/intergroup/README.md) |
