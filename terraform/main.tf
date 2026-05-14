@@ -128,30 +128,7 @@ resource "aws_ecr_repository" "sync_most_liked_feed_service" {
 
 # TODO: get correct AMI.
 ### EC2 instances ###
-resource "aws_instance" "feed_api" {
-  ami           = "ami-09efc42336106d2f2" # 64-bit x86
-  instance_type = "t3.micro"
-  key_name      = "firehoseSyncEc2Key"
 
-  tags = {
-    Name = "feed-api-ec2-instance"
-  }
-
-  iam_instance_profile   = "EC2InstanceProfile"
-  vpc_security_group_ids = [aws_security_group.feed_api_sg.id]
-}
-
-resource "aws_instance" "firehose" {
-  ami           = "ami-067df2907035c28c2"
-  instance_type = "t4g.small"
-  key_name      = "firehoseSyncEc2Key"
-
-  tags = {
-    Name = "firehose-ec2-instance"
-  }
-  iam_instance_profile   = "EC2InstanceProfile"
-  vpc_security_group_ids = [aws_security_group.firehose_sg.id]
-}
 
 ## Connect EC2 instance to API Gateway via VPC and NLB ##
 # Create NLB in the VPC that targets the EC2 instance
@@ -160,133 +137,20 @@ resource "aws_instance" "firehose" {
 # Attach the EC2 instance to the target group
 
 # Create VPC
-resource "aws_vpc" "main" {
-  cidr_block           = "172.31.0.0/16"
-  enable_dns_hostnames = true
-  enable_dns_support   = true
-  tags = {
-    Name = "bluesky-research-vpc"
-  }
-}
 
 # Create a Network Load Balancer
-resource "aws_lb" "api_nlb" {
-  name               = "api-nlb"
-  internal           = true
-  load_balancer_type = "network"
-  # aws ec2 describe-subnets --filters "Name=vpc-id,Values=vpc-052fa7eed9a020314" --query 'Subnets[*].{SubnetId:SubnetId,AvailabilityZone:AvailabilityZone,CidrBlock:CidrBlock,Name:Tags[?Key==`Name`].Value|[0]}' --output table
-  subnets = ["subnet-0bb65ec9f850af1c6", "subnet-015f7cb4b6125b8c5", "subnet-0df87a873992b1e8e"]
-
-  enable_deletion_protection = false
-}
 
 # Create a target group for the NLB
-resource "aws_lb_target_group" "api_tg" {
-  name     = "api-tg"
-  port     = 8000
-  protocol = "TCP"
-  vpc_id   = aws_vpc.main.id
-
-  health_check {
-    port     = 8000
-    protocol = "TCP"
-  }
-}
 
 # Attach the EC2 instance to the target group
-resource "aws_lb_target_group_attachment" "api_tg_attachment" {
-  target_group_arn = aws_lb_target_group.api_tg.arn
-  target_id        = aws_instance.feed_api.id
-  port             = 8000
-}
 
 # Create a listener for the NLB
-resource "aws_lb_listener" "api_listener" {
-  load_balancer_arn = aws_lb.api_nlb.arn
-  port              = 8000
-  protocol          = "TCP"
-
-  default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.api_tg.arn
-  }
-}
 
 # Create a VPC Link for API Gateway
-resource "aws_api_gateway_vpc_link" "api_vpc_link" {
-  name        = "api-vpc-link"
-  description = "VPC Link for API Gateway to access EC2 instance"
-  target_arns = [aws_lb.api_nlb.arn]
-}
 
 # Updated security group for feed_api
-resource "aws_security_group" "feed_api_sg" {
-  name        = "feed-api-security-group"
-  description = "Security group for Feed API EC2 instance"
-  vpc_id      = aws_vpc.main.id
-
-  ingress {
-    from_port   = 8000
-    to_port     = 8000
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  # API Gateway access
-  ingress {
-    from_port   = 8000
-    to_port     = 8000
-    protocol    = "tcp"
-    cidr_blocks = [aws_vpc.main.cidr_block] # Allow traffic from within the VPC
-  }
-
-  # SSH access from AWS console.
-  # https://ip-ranges.amazonaws.com/ip-ranges.json
-  # Should allow SSH access from the EC2 Instance Connect service.
-  # But, these IPs can change periodically.
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["3.16.146.0/29", "3.17.228.0/29", "3.130.192.0/29"] # AWS Console IP ranges
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-}
 
 # security group for firehose
-resource "aws_security_group" "firehose_sg" {
-  name        = "firehose-sg"
-  description = "Security group for Firehose EC2 instance"
-  vpc_id      = aws_vpc.main.id
-
-  # SSH access from AWS console.
-  # https://ip-ranges.amazonaws.com/ip-ranges.json
-  # Should allow SSH access from the EC2 Instance Connect service.
-  # But, these IPs can change periodically.
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["3.16.146.0/29"] # AWS Console IP ranges
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  lifecycle {
-    ignore_changes = [name]
-  }
-}
 
 
 ### Lambdas ###
@@ -318,10 +182,6 @@ resource "aws_lambda_function" "sync_most_liked_feed_lambda" {
   }
 }
 
-resource "aws_cloudwatch_log_group" "sync_most_liked_feed_lambda_log_group" {
-  name              = "/aws/lambda/sync_most_liked_feed_lambda"
-  retention_in_days = 7
-}
 
 
 resource "aws_lambda_function" "preprocess_raw_data_lambda" {
@@ -338,10 +198,6 @@ resource "aws_lambda_function" "preprocess_raw_data_lambda" {
   }
 }
 
-resource "aws_cloudwatch_log_group" "preprocess_raw_data_lambda_log_group" {
-  name              = "/aws/lambda/preprocess_raw_data_lambda"
-  retention_in_days = 7
-}
 
 resource "aws_lambda_function" "calculate_superposters_lambda" {
   function_name = "calculate_superposters_lambda"
@@ -357,10 +213,6 @@ resource "aws_lambda_function" "calculate_superposters_lambda" {
   }
 }
 
-resource "aws_cloudwatch_log_group" "calculate_superposters_lambda_log_group" {
-  name              = "/aws/lambda/calculate_superposters_lambda"
-  retention_in_days = 7
-}
 
 resource "aws_lambda_function" "consume_sqs_messages_lambda" {
   function_name = "consume_sqs_messages_lambda"
@@ -376,10 +228,6 @@ resource "aws_lambda_function" "consume_sqs_messages_lambda" {
   }
 }
 
-resource "aws_cloudwatch_log_group" "consume_sqs_messages_lambda_log_group" {
-  name              = "/aws/lambda/consume_sqs_messages_lambda"
-  retention_in_days = 7
-}
 
 resource "aws_lambda_function" "compact_dedupe_data_lambda" {
   function_name = "compact_dedupe_data_lambda"
@@ -395,10 +243,6 @@ resource "aws_lambda_function" "compact_dedupe_data_lambda" {
   }
 }
 
-resource "aws_cloudwatch_log_group" "compact_dedupe_data_lambda_log_group" {
-  name              = "/aws/lambda/compact_dedupe_data_lambda"
-  retention_in_days = 7
-}
 
 resource "aws_lambda_function" "consolidate_enrichment_integrations_lambda" {
   function_name = "consolidate_enrichment_integrations_lambda"
@@ -414,10 +258,6 @@ resource "aws_lambda_function" "consolidate_enrichment_integrations_lambda" {
   }
 }
 
-resource "aws_cloudwatch_log_group" "consolidate_enrichment_integrations_lambda_log_group" {
-  name              = "/aws/lambda/consolidate_enrichment_integrations_lambda"
-  retention_in_days = 7
-}
 
 
 resource "aws_lambda_function" "generate_vector_embeddings_lambda" {
@@ -434,10 +274,6 @@ resource "aws_lambda_function" "generate_vector_embeddings_lambda" {
   }
 }
 
-resource "aws_cloudwatch_log_group" "generate_vector_embeddings_lambda_log_group" {
-  name              = "/aws/lambda/generate_vector_embeddings_lambda"
-  retention_in_days = 7
-}
 
 
 resource "aws_lambda_function" "ml_inference_perspective_api_lambda" {
@@ -454,10 +290,6 @@ resource "aws_lambda_function" "ml_inference_perspective_api_lambda" {
   }
 }
 
-resource "aws_cloudwatch_log_group" "ml_inference_perspective_api_lambda_log_group" {
-  name              = "/aws/lambda/ml_inference_perspective_api_lambda"
-  retention_in_days = 7
-}
 
 resource "aws_lambda_function" "ml_inference_sociopolitical_lambda" {
   function_name = "ml_inference_sociopolitical_lambda"
@@ -473,10 +305,6 @@ resource "aws_lambda_function" "ml_inference_sociopolitical_lambda" {
   }
 }
 
-resource "aws_cloudwatch_log_group" "ml_inference_sociopolitical_lambda_log_group" {
-  name              = "/aws/lambda/ml_inference_sociopolitical_lambda"
-  retention_in_days = 7
-}
 
 resource "aws_lambda_function" "rank_score_feeds_lambda" {
   function_name = "rank_score_feeds_lambda"
@@ -491,203 +319,6 @@ resource "aws_lambda_function" "rank_score_feeds_lambda" {
     ignore_changes = [image_uri]
   }
 }
-
-resource "aws_cloudwatch_log_group" "rank_score_feeds_lambda_log_group" {
-  name              = "/aws/lambda/rank_score_feeds_lambda"
-  retention_in_days = 7
-}
-
-### Event rules triggers ###
-
-# 24-hour sync for most liked feed.
-resource "aws_cloudwatch_event_rule" "sync_most_liked_feed_rule" {
-  name                = "sync_most_liked_feed_rule"
-  schedule_expression = "cron(0 0 * * ? *)" # Triggers at 00:00 UTC every day
-  state               = "DISABLED"          # turn off the event rule. Triggering in Quest now.
-}
-
-resource "aws_cloudwatch_event_target" "sync_most_liked_feed_target" {
-  rule      = aws_cloudwatch_event_rule.sync_most_liked_feed_rule.name
-  target_id = "syncMostLikedFeedLambda"
-  arn       = aws_lambda_function.sync_most_liked_feed_lambda.arn
-}
-
-resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_sync_most_liked_feed" {
-  statement_id  = "AllowExecutionFromCloudWatch"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.sync_most_liked_feed_lambda.function_name
-  principal     = "events.amazonaws.com"
-  source_arn    = aws_cloudwatch_event_rule.sync_most_liked_feed_rule.arn
-}
-
-# Trigger for preprocessing lambda every 45 minutes.
-resource "aws_cloudwatch_event_rule" "preprocess_raw_data_event_rule" {
-  name                = "preprocess_raw_data_event_rule"
-  schedule_expression = "cron(0/45 * * * ? *)" # Triggers every 45 minutes
-  state               = "DISABLED"             # turn off the event rule. Triggering in Quest now.
-}
-
-resource "aws_cloudwatch_event_target" "preprocess_raw_data_event_target" {
-  rule      = aws_cloudwatch_event_rule.preprocess_raw_data_event_rule.name
-  target_id = "preprocessRawDataLambda"
-  arn       = aws_lambda_function.preprocess_raw_data_lambda.arn
-}
-
-resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_preprocess_raw_data" {
-  statement_id  = "AllowExecutionFromCloudWatchPreprocessRawData"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.preprocess_raw_data_lambda.function_name
-  principal     = "events.amazonaws.com"
-  source_arn    = aws_cloudwatch_event_rule.preprocess_raw_data_event_rule.arn
-}
-
-# Trigger for consume_sqs_messages_lambda every 15 minutes.
-# resource "aws_cloudwatch_event_rule" "consume_sqs_messages_event_rule" {
-#   name                = "consume_sqs_messages_event_rule"
-#   schedule_expression = "cron(0/15 * * * ? *)"  # Triggers every 15 minutes
-# }
-
-# resource "aws_cloudwatch_event_target" "consume_sqs_messages_event_target" {
-#   rule      = aws_cloudwatch_event_rule.consume_sqs_messages_event_rule.name
-#   target_id = "consumeSqsMessagesLambda"
-#   arn       = aws_lambda_function.consume_sqs_messages_lambda.arn
-# }
-
-# resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_consume_sqs_messages" {
-#   statement_id  = "AllowExecutionFromCloudWatchConsumeSqsMessages"
-#   action        = "lambda:InvokeFunction"
-#   function_name = aws_lambda_function.consume_sqs_messages_lambda.function_name
-#   principal     = "events.amazonaws.com"
-#   source_arn    = aws_cloudwatch_event_rule.consume_sqs_messages_event_rule.arn
-# }
-
-# Trigger to calculate superposters every 12 hours.
-resource "aws_cloudwatch_event_rule" "calculate_superposters_event_rule" {
-  name                = "calculate_superposters_event_rule"
-  schedule_expression = "cron(0 0/12 * * ? *)" # Triggers every 12 hours
-  state               = "DISABLED"             # turn off the event rule. Triggering in Quest now.
-}
-
-resource "aws_cloudwatch_event_target" "calculate_superposters_event_target" {
-  rule      = aws_cloudwatch_event_rule.calculate_superposters_event_rule.name
-  target_id = "calculateSuperpostersLambda"
-  arn       = aws_lambda_function.calculate_superposters_lambda.arn
-}
-
-resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_calculate_superposters" {
-  statement_id  = "AllowExecutionFromCloudWatchCalculateSuperposters"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.calculate_superposters_lambda.function_name
-  principal     = "events.amazonaws.com"
-  source_arn    = aws_cloudwatch_event_rule.calculate_superposters_event_rule.arn
-}
-
-# Trigger for compact_dedupe_data_lambda every 8 hours.
-resource "aws_cloudwatch_event_rule" "compact_dedupe_data_event_rule" {
-  name                = "compact_dedupe_data_event_rule"
-  schedule_expression = "cron(0 0/8 * * ? *)" # Triggers every 8 hours
-  state               = "DISABLED"            # turn off the event rule. Triggering in Quest now.
-}
-
-resource "aws_cloudwatch_event_target" "compact_dedupe_data_event_target" {
-  rule      = aws_cloudwatch_event_rule.compact_dedupe_data_event_rule.name
-  target_id = "compactDedupeDataLambda"
-  arn       = aws_lambda_function.compact_dedupe_data_lambda.arn
-}
-
-resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_compact_dedupe_data" {
-  statement_id  = "AllowExecutionFromCloudWatchCompactDedupeData"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.compact_dedupe_data_lambda.function_name
-  principal     = "events.amazonaws.com"
-  source_arn    = aws_cloudwatch_event_rule.compact_dedupe_data_event_rule.arn
-}
-
-# Trigger ML lambdas every 4 hours.
-resource "aws_cloudwatch_event_rule" "perspective_api_event_rule" {
-  name                = "perspective_api_event_rule"
-  schedule_expression = "cron(0 0/4 * * ? *)" # Triggers every 4 hours
-  state               = "DISABLED"            # turn off the event rule. Triggering in Quest now.
-}
-
-resource "aws_cloudwatch_event_target" "perspective_api_event_target" {
-  rule      = aws_cloudwatch_event_rule.perspective_api_event_rule.name
-  target_id = "perspectiveApiLambda"
-  arn       = aws_lambda_function.ml_inference_perspective_api_lambda.arn
-}
-
-resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_perspective_api" {
-  statement_id  = "AllowExecutionFromCloudWatchPerspectiveAPI"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.ml_inference_perspective_api_lambda.function_name
-  principal     = "events.amazonaws.com"
-  source_arn    = aws_cloudwatch_event_rule.perspective_api_event_rule.arn
-}
-
-resource "aws_cloudwatch_event_rule" "sociopolitical_event_rule" {
-  name                = "sociopolitical_event_rule"
-  schedule_expression = "cron(0 0/4 * * ? *)" # Triggers every 4 hours
-  state               = "DISABLED"            # turn off the event rule. Triggering in Quest now.
-}
-
-resource "aws_cloudwatch_event_target" "sociopolitical_event_target" {
-  rule      = aws_cloudwatch_event_rule.sociopolitical_event_rule.name
-  target_id = "sociopoliticalLambda"
-  arn       = aws_lambda_function.ml_inference_sociopolitical_lambda.arn
-}
-
-resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_sociopolitical" {
-  statement_id  = "AllowExecutionFromCloudWatchSociopolitical"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.ml_inference_sociopolitical_lambda.function_name
-  principal     = "events.amazonaws.com"
-  source_arn    = aws_cloudwatch_event_rule.sociopolitical_event_rule.arn
-}
-
-# consolidate enrichment integrations every 4 hours, starting at the 20 minute mark.
-# this is run offset of the ML lambdas to avoid race conditions where
-# the ML lambdas are still running and modifying the data.
-resource "aws_cloudwatch_event_rule" "consolidate_enrichment_integrations_event_rule" {
-  name                = "consolidate_enrichment_integrations_event_rule"
-  schedule_expression = "cron(20 0/4 * * ? *)" # Triggers every 4 hours, starting at 20 minutes past the hour
-  state               = "DISABLED"             # turn off the event rule. Triggering in Quest now.
-}
-
-resource "aws_cloudwatch_event_target" "consolidate_enrichment_integrations_event_target" {
-  rule      = aws_cloudwatch_event_rule.consolidate_enrichment_integrations_event_rule.name
-  target_id = "consolidateEnrichmentIntegrationsLambda"
-  arn       = aws_lambda_function.consolidate_enrichment_integrations_lambda.arn
-}
-
-resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_consolidate_enrichment_integrations" {
-  statement_id  = "AllowExecutionFromCloudWatchConsolidateEnrichmentIntegrations"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.consolidate_enrichment_integrations_lambda.function_name
-  principal     = "events.amazonaws.com"
-  source_arn    = aws_cloudwatch_event_rule.consolidate_enrichment_integrations_event_rule.arn
-}
-
-# Rank score feeds every 8 hours, starting at 45 minutes past the hour.
-resource "aws_cloudwatch_event_rule" "rank_score_feeds_event_rule" {
-  name                = "rank_score_feeds_event_rule"
-  schedule_expression = "cron(45 0/8 * * ? *)" # Triggers every 8 hours, 45 minutes past the hour
-  state               = "DISABLED"             # turn off the event rule. Triggering in Quest now.
-}
-
-resource "aws_cloudwatch_event_target" "rank_score_feeds_event_target" {
-  rule      = aws_cloudwatch_event_rule.rank_score_feeds_event_rule.name
-  target_id = "rankScoreFeedsLambda"
-  arn       = aws_lambda_function.rank_score_feeds_lambda.arn
-}
-
-resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_rank_score_feeds" {
-  statement_id  = "AllowExecutionFromCloudWatchRankScoreFeeds"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.rank_score_feeds_lambda.function_name
-  principal     = "events.amazonaws.com"
-  source_arn    = aws_cloudwatch_event_rule.rank_score_feeds_event_rule.arn
-}
-
 
 ### API Gateway ###
 
@@ -745,8 +376,7 @@ resource "aws_api_gateway_integration" "bluesky_feed_api_proxy_integration" {
 resource "aws_api_gateway_deployment" "bluesky_feed_api_gateway_deployment" {
   depends_on = [
     aws_api_gateway_integration.bluesky_feed_api_proxy_integration,
-    aws_api_gateway_integration.bluesky_feed_api_root_integration,
-    aws_api_gateway_integration.bluesky_ec2_feed_api_integration
+    aws_api_gateway_integration.bluesky_feed_api_root_integration
   ]
 
   rest_api_id = aws_api_gateway_rest_api.bluesky_feed_api_gateway.id
@@ -784,21 +414,6 @@ resource "aws_api_gateway_method" "bluesky_ec2_feed_api_method" {
 # allowing HTTP GET requests without any authorization.
 # It serves as an entry point for clients to access the API,
 # enabling them to retrieve data or perform actions defined in the backend.
-resource "aws_api_gateway_integration" "bluesky_ec2_feed_api_integration" {
-  rest_api_id = aws_api_gateway_rest_api.bluesky_feed_api_gateway.id
-  resource_id = aws_api_gateway_resource.bluesky_ec2_feed_api.id
-  http_method = aws_api_gateway_method.bluesky_ec2_feed_api_method.http_method
-
-  type                    = "HTTP_PROXY"
-  integration_http_method = "ANY"
-  uri                     = "http://${aws_instance.feed_api.public_dns}:8000/{proxy}"
-
-  request_parameters = {
-    "integration.request.path.proxy" = "method.request.path.proxy"
-  }
-
-  connection_type = "INTERNET"
-}
 
 ### Custom domain + API Gateway mapping ###
 resource "aws_api_gateway_domain_name" "custom_domain" {
@@ -824,20 +439,6 @@ data "aws_route53_zone" "selected" {
   private_zone = false
 }
 
-# Route 53 Alias record to point to the API Gateway domain name
-resource "aws_route53_record" "api_gateway_alias" {
-  zone_id = data.aws_route53_zone.selected.zone_id
-  name    = var.custom_domain_name
-  type    = "A"
-
-  alias {
-    name                   = aws_api_gateway_domain_name.custom_domain.regional_domain_name
-    zone_id                = aws_api_gateway_domain_name.custom_domain.regional_zone_id
-    evaluate_target_health = false
-  }
-}
-
-
 ### Cloudwatch logging ###
 resource "aws_iam_role" "api_gateway_cloudwatch_role" {
   name = "APIGatewayCloudWatchLogsRole"
@@ -861,41 +462,15 @@ resource "aws_iam_role_policy_attachment" "api_gateway_cloudwatch_role_policy" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs"
 }
 
-resource "aws_api_gateway_account" "api_gateway_account" {
-  cloudwatch_role_arn = aws_iam_role.api_gateway_cloudwatch_role.arn
-  depends_on          = [aws_iam_role_policy_attachment.api_gateway_cloudwatch_role_policy]
-}
-resource "aws_cloudwatch_log_group" "api_gateway_log_group" {
-  name              = "/aws/api-gateway/bluesky_feed_api_gateway"
-  retention_in_days = 7
-}
 
 resource "aws_api_gateway_stage" "api_gateway_stage" {
   stage_name    = "prod"
   rest_api_id   = aws_api_gateway_rest_api.bluesky_feed_api_gateway.id
   deployment_id = aws_api_gateway_deployment.bluesky_feed_api_gateway_deployment.id # Corrected reference
 
-  access_log_settings {
-    destination_arn = aws_cloudwatch_log_group.api_gateway_log_group.arn
-    format = jsonencode({
-      requestId      = "$context.requestId"
-      ip             = "$context.identity.sourceIp"
-      caller         = "$context.identity.caller"
-      user           = "$context.identity.user"
-      requestTime    = "$context.requestTime"
-      httpMethod     = "$context.httpMethod"
-      resourcePath   = "$context.resourcePath"
-      status         = "$context.status"
-      protocol       = "$context.protocol"
-      responseLength = "$context.responseLength"
-    })
-  }
-
   lifecycle {
     create_before_destroy = true
   }
-
-  depends_on = [aws_api_gateway_account.api_gateway_account]
 }
 
 ### IAM Roles and Policies ###
@@ -1189,76 +764,14 @@ resource "aws_iam_instance_profile" "cloudwatch_agent_instance_profile" {
   role = aws_iam_role.cloudwatch_ec2_instance_agent_role.name
 }
 ### SQS Queue ###
-resource "aws_sqs_queue" "syncs_to_be_processed_queue" {
-  name                        = "syncsToBeProcessedQueue.fifo"
-  fifo_queue                  = true
-  content_based_deduplication = true
 
-  redrive_policy = jsonencode({
-    deadLetterTargetArn = aws_sqs_queue.dead_letter_queue.arn
-    maxReceiveCount     = 5
-  })
-}
 
-resource "aws_sqs_queue" "dead_letter_queue" {
-  name       = "syncsToBeProcessedDLQ.fifo"
-  fifo_queue = true
-}
 
-resource "aws_sqs_queue" "firehose_syncs_to_be_processed_queue" {
-  name                        = "firehoseSyncsToBeProcessedQueue.fifo"
-  fifo_queue                  = true
-  content_based_deduplication = true
 
-  redrive_policy = jsonencode({
-    deadLetterTargetArn = aws_sqs_queue.firehose_dead_letter_queue.arn
-    maxReceiveCount     = 5
-  })
-}
 
-resource "aws_sqs_queue" "firehose_dead_letter_queue" {
-  name       = "firehoseSyncsToBeProcessedDLQ.fifo"
-  fifo_queue = true
-}
-
-resource "aws_sqs_queue" "most_liked_syncs_to_be_processed_queue" {
-  name                        = "mostLikedSyncsToBeProcessedQueue.fifo"
-  fifo_queue                  = true
-  content_based_deduplication = true
-
-  redrive_policy = jsonencode({
-    deadLetterTargetArn = aws_sqs_queue.most_liked_dead_letter_queue.arn
-    maxReceiveCount     = 5
-  })
-}
-
-resource "aws_sqs_queue" "most_liked_dead_letter_queue" {
-  name       = "mostLikedSyncsToBeProcessedDLQ.fifo"
-  fifo_queue = true
-}
 
 
 ### IAM Policies for SQS ###
-resource "aws_iam_role_policy" "lambda_sqs_policy" {
-  name = "LambdaSQSPolicy"
-  role = aws_iam_role.lambda_exec.id
-
-  policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Action = [
-          "sqs:SendMessage",
-          "sqs:ReceiveMessage",
-          "sqs:DeleteMessage",
-          "sqs:GetQueueAttributes"
-        ],
-        Effect   = "Allow",
-        Resource = aws_sqs_queue.syncs_to_be_processed_queue.arn
-      }
-    ]
-  })
-}
 
 resource "aws_iam_role_policy_attachment" "lambda_attach_sqs_policy" {
   role       = aws_iam_role.lambda_exec.name
@@ -3200,25 +2713,9 @@ resource "aws_glue_crawler" "cached_custom_feeds_crawler" {
 }
 
 
-resource "aws_cloudwatch_log_group" "glue_crawler_logs" {
-  name              = "/aws-glue/crawlers"
-  retention_in_days = 14 # Retain logs for 14 days
-}
 
-resource "aws_cloudwatch_log_stream" "llm_sociopolitical_labels_crawler_stream" {
-  log_group_name = aws_cloudwatch_log_group.glue_crawler_logs.name
-  name           = "llm_sociopolitical_labels_crawler_stream"
-}
 
-resource "aws_cloudwatch_log_stream" "perspective_api_labels_crawler_stream" {
-  log_group_name = aws_cloudwatch_log_group.glue_crawler_logs.name
-  name           = "perspective_api_labels_crawler_stream"
-}
 
-resource "aws_cloudwatch_log_stream" "preprocessed_posts_crawler_stream" {
-  log_group_name = aws_cloudwatch_log_group.glue_crawler_logs.name
-  name           = "preprocessed_posts_crawler_stream"
-}
 
 # resource "aws_cloudwatch_log_stream" "queue_messages_crawler_stream" {
 #   log_group_name = aws_cloudwatch_log_group.glue_crawler_logs.name
@@ -3231,129 +2728,19 @@ resource "aws_cloudwatch_log_stream" "preprocessed_posts_crawler_stream" {
 # }
 
 # Log group.
-resource "aws_cloudwatch_log_group" "sync_firehose_logs" {
-  name              = "sync-firehose-logs"
-  retention_in_days = 5
-}
 
 # set up alert if there's been no logs for 30 hours.
-resource "aws_cloudwatch_log_metric_filter" "no_logs_filter" {
-  name           = "NoLogsFilter"
-  pattern        = ""
-  log_group_name = aws_cloudwatch_log_group.sync_firehose_logs.name
 
-  metric_transformation {
-    name      = "EventCount"
-    namespace = "SyncFirehoseMetrics"
-    value     = "1"
-  }
-}
 
-resource "aws_sns_topic" "sync_firehose_alerts" {
-  name = "sync-firehose-alerts"
-}
 
-resource "aws_sns_topic_subscription" "email_subscription" {
-  topic_arn = aws_sns_topic.sync_firehose_alerts.arn
-  protocol  = "email"
-  endpoint  = "markptorres1@gmail.com"
-}
-
-resource "aws_cloudwatch_metric_alarm" "no_logs_alarm" {
-  alarm_name          = "NoLogsReceived"
-  comparison_operator = "LessThanThreshold"
-  evaluation_periods  = "1"
-  metric_name         = "EventCount"
-  namespace           = "SyncFirehoseMetrics"
-  period              = "1800" # 30 minutes
-  statistic           = "Sum"
-  threshold           = "1"
-  alarm_description   = "This alarm goes off if no logs are received in 30 minutes"
-  actions_enabled     = true
-  alarm_actions       = [aws_sns_topic.sync_firehose_alerts.arn]
-  treat_missing_data  = "breaching"
-
-  dimensions = {
-    LogGroupName = aws_cloudwatch_log_group.sync_firehose_logs.name
-  }
-}
 
 ### Alerting for lambda failures ###
-resource "aws_sns_topic" "lambda_alerts" {
-  name = "lambda-failure-alerts"
-}
 
 # SNS Topic Subscription
-resource "aws_sns_topic_subscription" "lambda_alerts_email" {
-  topic_arn = aws_sns_topic.lambda_alerts.arn
-  protocol  = "email"
-  endpoint  = "markptorres1@gmail.com"
-}
 
 # CloudWatch Alarm for Lambda errors
-resource "aws_cloudwatch_metric_alarm" "lambda_errors" {
-  for_each = toset([
-    "sync_most_liked_feed_lambda",
-    "preprocess_raw_data_lambda",
-    "calculate_superposters_lambda",
-    "compact_dedupe_data_lambda",
-    "ml_inference_perspective_api_lambda",
-    "ml_inference_sociopolitical_lambda",
-    "consolidate_enrichment_integrations_lambda",
-    "rank_score_feeds_lambda",
-  ])
-
-  alarm_name          = "Lambda-Errors-${each.key}"
-  comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = "1"
-  metric_name         = "Errors"
-  namespace           = "AWS/Lambda"
-  period              = "60" # 1 minute
-  statistic           = "Sum"
-  threshold           = "0"
-  alarm_description   = "This alarm monitors for any errors in the Lambda function ${each.key}"
-  alarm_actions       = [aws_sns_topic.lambda_alerts.arn]
-
-  dimensions = {
-    FunctionName = each.key
-  }
-}
 
 # CloudWatch Dashboard
-resource "aws_cloudwatch_dashboard" "lambda_errors_dashboard" {
-  dashboard_name = "LambdaErrorsDashboard"
-
-  dashboard_body = jsonencode({
-    widgets = [
-      for lambda_name in [
-        "sync_most_liked_feed_lambda",
-        "preprocess_raw_data_lambda",
-        "calculate_superposters_lambda",
-        "compact_dedupe_data_lambda",
-        "ml_inference_perspective_api_lambda",
-        "ml_inference_sociopolitical_lambda",
-        "consolidate_enrichment_integrations_lambda",
-        "rank_score_feeds_lambda",
-        ] : {
-        type   = "metric"
-        x      = 0
-        y      = 0
-        width  = 12
-        height = 6
-
-        properties = {
-          metrics = [
-            ["AWS/Lambda", "Errors", "FunctionName", lambda_name]
-          ]
-          view    = "timeSeries"
-          stacked = false
-          region  = "us-east-1" # replace with your region
-          title   = "Errors for ${lambda_name}"
-        }
-      }
-    ]
-  })
-}
 
 ### AWS Athena ###  
 
@@ -3371,234 +2758,16 @@ resource "aws_athena_workgroup" "prod_workgroup" {
 }
 
 ### DynamoDB ###
-resource "aws_dynamodb_table" "users_whose_social_network_has_been_fetched" {
-  name         = "users_whose_social_network_has_been_fetched"
-  billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "user_handle"
-
-  attribute {
-    name = "user_handle"
-    type = "S"
-  }
-
-  tags = {
-    Name = "users_whose_social_network_has_been_fetched"
-  }
-}
-
-resource "aws_dynamodb_table" "backfill_user_metadata" {
-  name         = "backfill_user_metadata"
-  billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "pds_service_endpoint"
-  range_key    = "did_timestamp" # Composite sort key
-
-  attribute {
-    name = "pds_service_endpoint"
-    type = "S"
-  }
-
-  attribute {
-    name = "did_timestamp"
-    type = "S" # Format: "did#timestamp"
-  }
-
-  attribute {
-    name = "did"
-    type = "S"
-  }
-
-  attribute {
-    name = "bluesky_handle"
-    type = "S"
-  }
-
-  global_secondary_index {
-    name            = "did-index"
-    hash_key        = "did"
-    projection_type = "ALL"
-  }
-
-  global_secondary_index {
-    name            = "bluesky_handle-index"
-    hash_key        = "bluesky_handle"
-    projection_type = "ALL"
-  }
-
-  point_in_time_recovery {
-    enabled = true
-  }
-
-  tags = {
-    Name        = "backfill_user_metadata"
-    Environment = "production"
-  }
-}
-
-resource "aws_dynamodb_table" "integration_run_metadata" {
-  name         = "integration_run_metadata"
-  billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "timestamp"
-
-  attribute {
-    name = "timestamp"
-    type = "S"
-  }
-
-  attribute {
-    name = "service"
-    type = "S"
-  }
-
-  global_secondary_index {
-    name            = "service-index"
-    hash_key        = "service"
-    projection_type = "ALL"
-  }
-
-  tags = {
-    Name = "integration_run_metadata"
-  }
-}
-
-resource "aws_dynamodb_table" "backfill_metadata" {
-  name         = "backfill_metadata"
-  billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "timestamp"
-
-  attribute {
-    name = "timestamp"
-    type = "S"
-  }
-
-  attribute {
-    name = "service"
-    type = "S"
-  }
-
-  global_secondary_index {
-    name            = "service-index"
-    hash_key        = "service"
-    projection_type = "ALL"
-  }
-
-  tags = {
-    Name = "backfill_metadata"
-  }
-}
 
 
-resource "aws_dynamodb_table" "ml_inference_labeling_sessions" {
-  name         = "ml_inference_labeling_sessions"
-  billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "inference_timestamp"
 
-  attribute {
-    name = "inference_timestamp"
-    type = "S"
-  }
 
-  attribute {
-    name = "inference_type"
-    type = "S"
-  }
 
-  global_secondary_index {
-    name            = "inference_type-index"
-    hash_key        = "inference_type"
-    projection_type = "ALL"
-  }
 
-  global_secondary_index {
-    name            = "inference_timestamp-index"
-    hash_key        = "inference_timestamp"
-    projection_type = "ALL"
-  }
 
-  tags = {
-    Name = "ml_inference_labeling_sessions"
-  }
-}
 
-resource "aws_dynamodb_table" "vector_embedding_sessions" {
-  name         = "vector_embedding_sessions"
-  billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "embedding_timestamp"
 
-  attribute {
-    name = "embedding_timestamp"
-    type = "S"
-  }
 
-  tags = {
-    Name = "vector_embedding_sessions"
-  }
-}
-
-resource "aws_dynamodb_table" "enrichment_consolidation_sessions" {
-  name         = "enrichment_consolidation_sessions"
-  billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "enrichment_consolidation_timestamp"
-
-  attribute {
-    name = "enrichment_consolidation_timestamp"
-    type = "S"
-  }
-
-  tags = {
-    Name = "enrichment_consolidation_sessions"
-  }
-}
-
-resource "aws_dynamodb_table" "rank_score_feed_sessions" {
-  name         = "rank_score_feed_sessions"
-  billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "feed_generation_timestamp"
-
-  attribute {
-    name = "feed_generation_timestamp"
-    type = "S"
-  }
-
-  global_secondary_index {
-    name            = "feed_generation_timestamp-index"
-    hash_key        = "feed_generation_timestamp"
-    projection_type = "ALL"
-  }
-
-  tags = {
-    Name = "rank_score_feed_sessions"
-  }
-}
-
-resource "aws_dynamodb_table" "superposter_calculation_sessions" {
-  name         = "superposter_calculation_sessions"
-  billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "insert_date_timestamp"
-
-  attribute {
-    name = "insert_date_timestamp"
-    type = "S"
-  }
-
-  tags = {
-    Name = "superposter_calculation_sessions"
-  }
-}
-
-resource "aws_dynamodb_table" "compaction_sessions" {
-  name         = "compaction_sessions"
-  billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "compaction_timestamp"
-
-  attribute {
-    name = "compaction_timestamp"
-    type = "S"
-  }
-
-  tags = {
-    Name = "compaction_sessions"
-  }
-}
 
 ### Archive Tables for Nature Paper 2024 Data (Analysis Use Only) ###
 
@@ -5063,4 +4232,3 @@ resource "aws_glue_catalog_table" "archive_study_user_activity_block" {
     type = "string"
   }
 }
-

@@ -41,6 +41,7 @@ dependencies = [
     # Time zones (explicit; some paths no longer inherit pytz via transitive deps)
     "pytz>=2024.1",
     "prefect>=3.7.0",
+    "tqdm>=4.67.1",
 ]
 
 [build-system]
