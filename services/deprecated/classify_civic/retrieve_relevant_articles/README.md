@@ -1,1 +1,0 @@
-Retrieves any articles relevant to a particular query.
