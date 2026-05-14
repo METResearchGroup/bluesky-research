@@ -14,11 +14,11 @@ Consolidates **user session logs** that the feed API writes to S3 into **roughly
 
 ## How the key files relate
 
-Two paths: **scheduled compaction** (Prefect → SLURM → handler → `helper.main`) and **CloudWatch backfill** (same `main`, first step).
+Two paths: scheduled compaction (Prefect -> SLURM -> handler -> `helper.main`) and CloudWatch backfill (same `main`, first step).
 
 ### Scheduled compaction and backfill
 
-Triggered from the analytics Prefect flow in [`orchestration/analytics_pipeline.py`](../../orchestration/analytics_pipeline.py) (when deployed, `cron="0 8 * * *"` in `analytics_pipeline.serve`).
+Triggered from the analytics Prefect flow in [`orchestration/analytics_pipeline.py`](../../orchestration/analytics_pipeline.py).
 
 ```mermaid
 flowchart TB
@@ -82,4 +82,4 @@ Uses the repo root as `PYTHONPATH` (CI sets `PYTHONPATH` to the workspace).
 
 ## Operational note
 
-Deployment secrets (log group, EC2 log stream, crawler name, S3 prefix) are centralized in `constants.py`; update that file when the feed host or logging layout changes. See [`docs/runbooks/services/compact_user_session_logs.md`](../../docs/runbooks/services/compact_user_session_logs.md).
+Deployment tuning (log group, EC2 log stream, crawler name, S3 prefix, and related literals) lives in `constants.py` — update it when the feed host or logging layout changes. For **failure modes and recovery**, see [`docs/runbooks/services/compact_user_session_logs.md`](../../docs/runbooks/services/compact_user_session_logs.md).

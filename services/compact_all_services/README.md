@@ -91,3 +91,7 @@ flowchart TB
 ```bash
 uv run pytest services/compact_all_services/tests -v --import-mode=importlib
 ```
+
+## Operators
+
+For **failure modes and recovery** on the scheduled compaction job, see [`docs/runbooks/services/compact_all_services.md`](../../docs/runbooks/services/compact_all_services.md).
