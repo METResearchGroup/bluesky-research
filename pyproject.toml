@@ -40,6 +40,7 @@ dependencies = [
     "tenacity>=8.5.0,<9.0.0",
     # Time zones (explicit; some paths no longer inherit pytz via transitive deps)
     "pytz>=2024.1",
+    "tqdm>=4.67.1",
 ]
 
 [build-system]

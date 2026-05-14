@@ -60,7 +60,7 @@ model = AutoModel.from_pretrained(  # nosec B615
 ).to(device)
 
 
-def get_latest_embedding_session() -> dict:
+def get_latest_embedding_session() -> dict | None:
     try:
         sessions: list[dict] = dynamodb.get_all_items_from_table(
             table_name=dynamodb_table_name
@@ -92,7 +92,7 @@ def insert_embedding_session(embedding_session: dict):
 
 def get_posts_to_embed() -> list[FilteredPreprocessedPostModel]:
     """Get the posts to embed."""
-    latest_embedding_session = get_latest_embedding_session()
+    latest_embedding_session: dict | None = get_latest_embedding_session()
     if latest_embedding_session is None:
         logger.info("No latest embedding session found. Embedding all posts...")
         latest_embedding_timestamp = None
