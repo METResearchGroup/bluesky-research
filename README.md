@@ -1,303 +1,112 @@
-# Bluesky Research Infrastructure
+# Redesigning algorithms to intervene on social norm misperceptions during a national election
 
-A comprehensive data platform and research infrastructure for analyzing social media content from Bluesky. This project provides end-to-end capabilities for real-time data ingestion, ML-powered content analysis, personalized feed generation, and research tooling for social media researchers and data scientists.
+This repository is the research-grade counterpart to a production social feed: it powered a large, preregistered Bluesky field experiment during the 2024 US presidential election and bundles the full loop from live-graph ingestion and multimodal content understanding through custom ranking, participant-facing feed APIs, session logging, and export pipelines for analysis. This is an end-to-end, platform-independent stack that lets a lab design, deploy, and audit recommender behavior in the wild instead of approximating it from the outside.
 
-## Architecture Overview
+## Research Context
 
-The system is built as a modular, scalable data platform with the following core components:
+Feed-ranking on large platforms is largely a black box: researchers cannot assign users to known algorithms, observe exposure precisely, or test alternatives at realistic scale. That blocks rigorous answers about what people actually see during elections, how ranking shapes beliefs about "normal" political talk, and whether safer designs are viable without hurting the product.
 
+This repository is what we built to close that gap: an industry-independent, Bluesky-native research stack. It provides real-time data ingestion at the scale of tens of millions of records, ML- and API-backed enrichment, custom ranking and experiments, a live feed generator API for participants, session telemetry, and analytics-oriented exports. This showcases the full application that allows a team to run social media field experiments with full control over the recommender, not just the survey questions.
+
+The preregistered field experiment ran through the 2024 US presidential election, a high-stakes window where data volume, rhetoric, and public attention all spike and which presented a rare opportunity to do a large-scale field study of the impact of algorithmic amplification on people's beliefs.
+
+## What This System Does
+
+This repo provides the end-to-end app structure for testing feed-ranking algorithms during the 2024 national election. It contains the data pipelines, AI algorithms, and API layers required to support a large-scale field study over the course of multiple months.
+
+## Architecture At A Glance
+
+```mermaid
+flowchart LR
+  B[Bluesky firehose and APIs] --> S[Sync pipelines]
+  S --> P[Preprocessing and enrichment]
+  P --> M[ML classifiers and embeddings]
+  M --> R[Feed ranking]
+  R --> A[Feed API]
+  A --> U[Bluesky users]
+  A --> L[Session logs]
+  P --> D[S3 / Parquet / Athena]
+  R --> D
+  L --> D
+  D --> AN[Analysis and reports]
 ```
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   Bluesky       │───▶│  Data Pipeline   │───▶│  Research       │
-│   Firehose      │    │  & Processing    │    │  Interface      │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-                                │
-                                ▼
-                       ┌──────────────────┐
-                       │  Feed Generation │
-                       │  & API Services  │
-                       └──────────────────┘
-```
 
-### Data Flow
+Production work is coordinated through a hybrid research infrastructure:
 
-1. **Ingestion**: Real-time stream processing from Bluesky's firehose
-2. **Processing**: ML inference, content classification, and data enrichment
-3. **Storage**: Parquet-based data lake with efficient querying capabilities
-4. **Analysis**: Research interface and API for data exploration
-5. **Generation**: Personalized feed algorithms and recommendation systems
+- **Prefect** defines the high-level DAGs in `orchestration/`.
+- **SLURM** runs scheduled jobs on the Quest HPC cluster.
+- **Pipeline handlers** in `pipelines/` provide job entrypoints and thin wrappers.
+- **Service modules** in `services/` contain the reusable production and analysis logic.
+- **AWS/S3/Athena** provide storage and analytical query infrastructure.
+- **FastAPI** powers the Bluesky feed generator API in `feed_api/`.
 
-## Project Setup
+## Production Data Flow
 
-### Prerequisites
+The production system is organized around seven workflows:
 
-- **Python 3.10+** (3.10, 3.11, 3.12 supported)
-- **uv** (preferred) or **conda** for package management
-- **Node.js 18+** (for frontend development)
-- **Docker** (for service deployment)
-- **Git** with pre-commit hooks
+1. **Sync pipeline**: captures Bluesky firehose records and persists streamed batches.
+2. **Integrations sync pipeline**: pulls curated Bluesky trending and most-liked feeds to supplement firehose capture.
+3. **Production data pipeline**: preprocesses raw records, fans out classifier and integration jobs, and consolidates enrichment outputs.
+4. **Vector embeddings pipeline**: generates transformer embeddings and similarity-facing post features.
+5. **Recommendation pipeline**: ranks and reranks candidate posts and exports personalized feeds.
+6. **Compaction pipeline**: rewrites partitioned service exports and snapshots designated data trees.
+7. **Analytics pipeline**: compacts study telemetry and aggregates participant activity tables for analysis.
 
-### Quick Setup (Recommended)
+For detailed DAGs and task mappings, start with:
 
-Use our automated setup script for the fastest installation:
+- `orchestration/README.md` for Prefect flows and SLURM triggers.
+- `pipelines/README.md` for job entrypoints and handler ownership.
+- `services/README.md` for the service-level production and analysis map.
+
+## Repository Map
+
+| Path | Purpose |
+| --- | --- |
+| `orchestration/` | Prefect DAGs and SLURM submission scripts for scheduled production workflows. |
+| `pipelines/` | SLURM job directories and `handler.py` entrypoints that invoke service logic. |
+| `services/` | Main production, analysis, enrichment, backfill, and research service modules. |
+| `feed_api/` | Bluesky feed generator API used to serve personalized feed skeletons and log sessions. |
+| `ml_tooling/` | Shared ML tooling, classifier helpers, model experiments, and labeling utilities. |
+| `lib/` | Shared AWS, database, telemetry, and utility modules. |
+| `docs/runbooks/` | Operational runbooks for selected services and maintenance workflows. |
+| `terraform/` | Infrastructure-as-code for AWS resources used by the hybrid deployment. |
+| `transform/` | Helpers for transforming raw sync data into consolidated formats. |
+| `scripts/` | One-off scripts and operational helpers, mostly outside production paths. |
+| `demos/` | Historical prototypes, experiments, and exploratory demos. |
+| `Dockerfiles/` | Deprecated cloud-first deployment artifacts retained for reference. |
+
+## Technical Details
+
+- **Design philosophy:** The repo splits orchestration (`orchestration/` Prefect flows), batch entrypoints (`pipelines/`), application logic (`services/`), and the feed surface (`feed_api/`). Ingestion, enrichment, ranking, serving, and logging are separate stages in that pipeline.
+- **Hybrid architecture:** Prefect-defined DAGs coordinate work across SLURM-backed HPC for heavy jobs and AWS primitives (S3, Parquet, Athena) for durable storage and analytical query, with FastAPI handling Bluesky-compatible feed delivery.
+- **What the build unlocked:** It made a preregistered field experiment possible on an open social graph—assigning users to known ranking policies, recording what they were actually shown, and connecting that exposure stream to engagement and survey outcomes for analysis that does not rely on inferring the algorithm from the outside.
+
+## Setup
+
+See the [repository setup runbook](docs/runbooks/SETUP_REPO.md) for setup.
+
+### Environment variables
+
+Copy the template and edit values locally:
 
 ```bash
-# Clone the repository
-git clone https://github.com/METResearchGroup/bluesky-research.git
-cd bluesky-research
-
-# Quick setup with uv and Python 3.10 (default)
-./scripts/setup_environment.sh
-
-# Or with custom options
-./scripts/setup_environment.sh --python 3.12 --env-name my-bluesky-env
-
-# Or use conda instead of uv
-./scripts/setup_environment.sh --conda --python 3.11
+cp .env.example .env
 ```
 
-The setup script will:
-- ✅ Install/validate package manager (uv or conda)
-- ✅ Create virtual environment with specified Python version
-- ✅ Install all project dependencies (core, dev, ML tooling)
-- ✅ Set up pre-commit hooks
-- ✅ Install project in editable mode
-- ✅ Run validation tests to ensure everything works
+Variable names and short descriptions are in [`.env.example`](.env.example). For AWS access patterns, see [`lib/aws/README.md`](lib/aws/README.md). The app loads `.env` from the repository root via `lib/load_env_vars.py` when not in test mode.
 
-**Setup Script Options:**
-- `-p, --python VERSION` - Python version (3.10, 3.11, 3.12)
-- `-c, --conda` - Use conda instead of uv
-- `-e, --env-name NAME` - Custom environment name
-- `-h, --help` - Show detailed help
+## Documentation Guide
 
-### Manual Installation with uv (Recommended)
+Use these documents as the next layer of detail:
 
-If you prefer manual setup with flexible dependency groups:
-
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/METResearchGroup/bluesky-research.git
-   cd bluesky-research
-   ```
-
-2. **Install uv** (if not already installed):
-   ```bash
-   curl -LsSf https://astral.sh/uv/install.sh | sh
-   ```
-
-3. **Install project dependencies with `uv sync`** (recommended method):
-
-   `uv sync` automatically creates a virtual environment and installs dependencies. Choose based on your needs:
-
-   **Option A: Core only (lightweight, ~50 packages)**
-   ```bash
-   uv sync
-   ```
-
-   **Option B: Development setup (core + dev tools)**
-   ```bash
-   uv sync --extra dev
-   ```
-
-   **Option C: Research & LLM work (without heavy ML)**
-   ```bash
-   uv sync --extra dev --extra llm --extra valence --extra telemetry
-   ```
-
-   **Option D: Full ML stack (includes PyTorch)**
-   ```bash
-   uv sync --extra dev --extra ml --extra llm --extra valence --extra telemetry
-   ```
-
-   **Option E: Everything (for CI or comprehensive development)**
-   ```bash
-   uv sync --all-extras
-   # or equivalently:
-   uv sync --extra all
-   ```
-
-   **Note**: `uv sync` automatically creates and manages the virtual environment. To activate it:
-   ```bash
-   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-   ```
-
-4. **Alternative: Using `uv pip install`** (if you prefer explicit venv management):
-
-   First create and activate virtual environment:
-   ```bash
-   uv venv --python 3.10  # or 3.11, 3.12
-   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-   ```
-
-   Then install dependencies:
-   ```bash
-   # Core only
-   uv pip install -e .
-   
-   # Development setup
-   uv pip install -e ".[dev]"
-   
-   # Research & LLM work
-   uv pip install -e ".[dev,llm,valence,telemetry]"
-   
-   # Full ML stack
-   uv pip install -e ".[dev,ml,llm,valence,telemetry]"
-   
-   # Everything
-   uv pip install -e ".[all]"
-   ```
-
-5. **Set up pre-commit hooks** (if using dev dependencies):
-   ```bash
-   pre-commit install
-   ```
-
-### Manual Installation with Conda
-
-1. **Create conda environment**:
-   ```bash
-   conda create -n bluesky-research python=3.10  # or 3.11, 3.12
-   conda activate bluesky-research
-   ```
-
-2. **Install dependencies** (choose based on your needs):
-   ```bash
-   # Core only (lightweight)
-   pip install -e .
-   
-   # Development setup
-   pip install -e ".[dev]"
-   
-   # Research & LLM work (without PyTorch)
-   pip install -e ".[dev,llm,valence,telemetry]"
-   
-   # Full ML stack (includes PyTorch)
-   pip install -e ".[dev,ml,llm,valence,telemetry]"
-   
-   # Everything
-   pip install -e ".[all]"
-   ```
-
-### Environment Configuration
-
-1. **Copy environment template**:
-   ```bash
-   cp .env.example .env
-   ```
-
-2. **Configure required environment variables**:
-   - `GOOGLE_API_KEY` - For Perspective API
-   - `OPENAI_API_KEY` - For LLM inference
-   - `AWS_ACCESS_KEY_ID` & `AWS_SECRET_ACCESS_KEY` - For S3 storage
-   - `MONGODB_URI` - For document storage (if used)
-
-### Dependency Management
-
-The project uses a unified `pyproject.toml` with logical dependency groups:
-
-#### Core Dependencies (always installed)
-- **Web & API**: flask, requests
-- **Data Processing**: pandas, numpy, duckdb, pyarrow
-- **Cloud & Storage**: boto3, atproto, peewee
-- **Utilities**: matplotlib, python-dotenv, click
-
-#### Optional Dependency Groups
-
-**`[dev]` - Development Tools (~76 packages)**
-```bash
-uv sync --extra dev
-# or with uv pip:
-uv pip install -e ".[dev]"
-```
-- pytest, ruff, pre-commit, autopep8, faker
-
-**`[ml]` - Machine Learning (~73 packages, includes PyTorch)**
-```bash
-uv sync --extra ml
-# or with uv pip:
-uv pip install -e ".[ml]"
-```
-- torch, transformers, sentence-transformers, scikit-learn, scipy
-
-**`[llm]` - LLM Services (~135 packages, no PyTorch)**
-```bash
-uv sync --extra llm
-# or with uv pip:
-uv pip install -e ".[llm]"
-```
-- openai, langchain, tiktoken, litellm, google-generativeai
-
-**`[valence]` - Lightweight Sentiment (~55 packages)**
-```bash
-uv sync --extra valence
-# or with uv pip:
-uv pip install -e ".[valence]"
-```
-- vadersentiment (minimal footprint)
-
-**`[feed_api]` - FastAPI Service**
-```bash
-uv sync --extra feed_api
-# or with uv pip:
-uv pip install -e ".[feed_api]"
-```
-- fastapi, uvicorn, mangum, momento (for the feed API service)
-
-**`[telemetry]` - Monitoring & Observability**
-```bash
-uv sync --extra telemetry
-# or with uv pip:
-uv pip install -e ".[telemetry]"
-```
-- wandb, comet-ml, sentry-sdk, prometheus-client, grafana-client
-
-**`[all]` - Everything (~185 packages)**
-```bash
-uv sync --all-extras
-# or:
-uv sync --extra all
-# or with uv pip:
-uv pip install -e ".[all]"
-```
-- All optional dependencies combined
-
-
-All package versions are resolved consistently through uv's dependency resolver, eliminating the version conflicts that existed with the previous multi-file requirements setup.
-
-## Development Workflow
-
-### Running Tests
-
-The project uses pytest with comprehensive test coverage:
-
-```bash
-# Run all tests
-uv run pytest
-
-# Run specific test modules
-uv run pytest lib/tests
-uv run pytest ml_tooling/tests
-uv run pytest services/*/tests
-
-# Run with coverage
-uv run pytest --cov=lib --cov=ml_tooling
-```
-
-### Code Quality
-
-All code must pass linting and formatting checks:
-
-```bash
-# Run linter (will fix auto-fixable issues)
-ruff check .
-
-# Format code
-ruff format .
-
-# Pre-commit hooks (runs automatically on commit)
-pre-commit run --all-files
-```
+- `services/README.md`: best overall map of production services, analysis modules, and ad hoc tooling.
+- `orchestration/README.md`: Prefect DAGs, task ordering, and SLURM flow triggers.
+- `pipelines/README.md`: job directories and their corresponding service packages.
+- `feed_api/README.md`: Bluesky feed generator API and session logging flow.
+- `terraform/README.md`: infrastructure-as-code and hybrid AWS/on-prem context.
+- `docs/runbooks/services/`: operational runbooks for selected production services.
+- [`docs/runbooks/SETUP_REPO.md`](docs/runbooks/SETUP_REPO.md): local setup, dependencies, and `.env` configuration.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License. See `LICENSE` for details.
