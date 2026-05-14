@@ -9,7 +9,6 @@ from lib.aws.dynamodb import DynamoDB
 from lib.constants import current_datetime_str
 from lib.log.logger import get_logger
 from lib.constants import TEST_USER_HANDLES
-from services.participant_data.mock_users import mock_users
 from services.participant_data.models import UserToBlueskyProfileModel
 
 logger = get_logger(__name__)
@@ -126,8 +125,6 @@ def manage_bsky_study_user(payload: dict) -> dict:
         elif operation == "DELETE":
             delete_bsky_user_from_study(bluesky_user_did=payload["bluesky_user_did"])
             message = "User deleted successfully."
-        elif operation == "INSERT_MOCK_USERS":
-            _insert_mock_users_into_study()
         else:
             return {
                 "status": 400,
@@ -151,22 +148,6 @@ def manage_bsky_study_user(payload: dict) -> dict:
 
 def manage_bsky_study_users(payloads: list[dict]) -> list[dict]:
     return [manage_bsky_study_user(payload) for payload in payloads]
-
-
-def _insert_mock_users_into_study():
-    """Inserts mock users into the study."""
-    payloads = [
-        {
-            "operation": "POST",
-            "bluesky_user_did": user["bluesky_user_did"],
-            "bluesky_handle": user["bluesky_handle"],
-            "is_study_user": False,
-            "condition": user["condition"],
-        }
-        for user in mock_users
-    ]
-    manage_bsky_study_users(payloads)
-    print(f"Inserted {len(mock_users)} mock users into the study.")
 
 
 def get_all_users(test_mode: bool = False) -> list[UserToBlueskyProfileModel]:
