@@ -366,6 +366,7 @@ min_confidence = 80
 exclude = [
     ".git",
     ".venv",
+    "lib/log",
     "tests",
     "demos",
     "experiments",

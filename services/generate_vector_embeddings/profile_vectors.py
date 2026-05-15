@@ -47,12 +47,12 @@ def global_centroid_to_query_embedding_model(
 
 def build_user_profile_vector(
     user_did: str,
-    activity_rows: list[dict] | None = None,
-    uri_to_embedding: dict[str, np.ndarray] | None = None,
+    _activity_rows: list[dict] | None = None,
+    _uri_to_embedding: dict[str, np.ndarray] | None = None,
 ) -> QueryEmbeddingModel:
     """Reserved for per-user profiles built offline from cached embeddings."""
     raise NotImplementedError(
-        "Per-user profile vectors are not implemented yet; compute offline by "
-        "aggregating engaged post URIs for the DID and averaging their cached "
-        "embedding vectors."
+        f"Per-user profile vectors are not implemented yet (user_did={user_did!r}); "
+        "compute offline by aggregating engaged post URIs for the DID and averaging "
+        "their cached embedding vectors."
     )
