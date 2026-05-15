@@ -17,6 +17,14 @@ from lib.db.manage_local_data import load_latest_data
 from lib.helper import track_performance
 from lib.datetime_utils import generate_current_datetime_str
 from lib.log.logger import get_logger
+from services.generate_vector_embeddings.ann_index import (
+    build_ann_index_session_from_embeddings,
+    concat_embeddings_from_s3_parquets,
+    list_parquet_keys_under_prefix,
+    load_ann_index_backend_from_s3,
+    load_uri_order_from_mapping_parquet,
+    l2_normalize_numpy,
+)
 from services.generate_vector_embeddings.embedding_generation import (
     DEFAULT_EMBEDDING_SCHEMA_VERSION,
     EmbeddingGenerator,
@@ -25,6 +33,12 @@ from services.generate_vector_embeddings.embedding_generation import (
     posts_missing_embedding_keys,
 )
 from services.generate_vector_embeddings.models import PostSimilarityScoreModel
+from services.generate_vector_embeddings.profile_vectors import (
+    global_centroid_to_query_embedding_model,
+)
+from services.generate_vector_embeddings.similarity_materialization import (
+    materialize_ann_backend_query,
+)
 from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
 
 
@@ -40,6 +54,10 @@ s3 = S3()
 
 dynamodb_table_name = "vector_embedding_sessions"
 batch_size = 64
+
+DEFAULT_ANN_MATERIALIZATION_TOP_K = int(
+    os.getenv("VECTOR_EMBEDDING_ANN_TOP_K", "100000")
+)
 
 _embedding_generator: EmbeddingGenerator | None = None
 
@@ -87,6 +105,152 @@ def insert_embedding_session(embedding_session: dict):
     except Exception as e:
         logger.error(f"Failed to insert embedding session: {e}")
         raise
+
+
+def _centroid_and_uris_from_average_parquet_df(
+    df: pd.DataFrame,
+) -> tuple[np.ndarray, list[str]]:
+    """Extract normalized centroid vector and source URIs from one-row export."""
+    raw_emb = df["embedding"].iloc[0]
+    arr = np.asarray(raw_emb, dtype=np.float32).reshape(-1)
+    centroid = l2_normalize_numpy(arr.reshape(1, -1))[0]
+    uris_cell = df["uris"].iloc[0] if "uris" in df.columns else []
+    if isinstance(uris_cell, (list, tuple)):
+        uris_seq = list(uris_cell)
+    else:
+        uris_seq = np.asarray(uris_cell).reshape(-1).tolist()
+    return centroid, [str(u) for u in uris_seq]
+
+
+def run_vector_embedding_offline_pipeline(
+    *,
+    ann_materialization_top_k: int | None = None,
+    force_flat_ann_index: bool = False,
+) -> dict | None:
+    """Run embedding export, ANN index build, query-vector export, and ANN scores.
+
+    This is **offline batch work only** (scheduled Lambda/Job). Feed serving must
+    never call into embedding generation or ANN construction.
+    """
+    embed_session = do_vector_embeddings()
+    if not embed_session:
+        logger.info("Offline pipeline: no embedding session produced.")
+        return None
+
+    ts = embed_session["embedding_timestamp"]
+    s3_keys_embed = embed_session["s3_keys"]
+    prefix = os.path.join(
+        vector_embeddings_root_s3_key,
+        "post_embeddings",
+        DEFAULT_EMBEDDING_SCHEMA_VERSION,
+    )
+    parquet_keys = list_parquet_keys_under_prefix(s3, prefix)
+    if not parquet_keys:
+        logger.warning(
+            f"Offline pipeline: no Parquet objects under {prefix}; skipping ANN stages."
+        )
+        return {"embedding_session": embed_session}
+
+    uris, vectors = concat_embeddings_from_s3_parquets(s3, parquet_keys)
+    if vectors.shape[0] == 0:
+        logger.warning("Offline pipeline: no embedding rows loaded; skipping ANN.")
+        return {"embedding_session": embed_session}
+
+    embedding_source_keys = {
+        "post_embeddings_prefix": prefix,
+        "parquet_file_count": str(len(parquet_keys)),
+        "latest_versioned_batch_key": s3_keys_embed.get(
+            "post_embeddings_versioned", ""
+        ),
+    }
+    ann_session = build_ann_index_session_from_embeddings(
+        uris,
+        vectors,
+        s3=s3,
+        vector_embeddings_root=vector_embeddings_root_s3_key,
+        embedding_schema_version=DEFAULT_EMBEDDING_SCHEMA_VERSION,
+        embedding_model=DEFAULT_EMBEDDING_MODEL_NAME,
+        embedding_model_revision=DEFAULT_EMBEDDING_MODEL_REVISION,
+        embedding_source_keys=embedding_source_keys,
+        force_flat_index=force_flat_ann_index,
+        timestamp=ts,
+    )
+    logger.info(
+        f"Offline pipeline: ann_index_s3_key={ann_session.index_s3_key} "
+        f"uri_mapping_s3_key={ann_session.uri_mapping_s3_key} "
+        f"vector_dimension={ann_session.vector_dimension}"
+    )
+
+    outcome: dict = {
+        "embedding_session": embed_session,
+        "ann_index_session": ann_session.model_dump(),
+    }
+
+    avg_key = s3_keys_embed.get("average_most_liked_feed_embeddings", "")
+    if not avg_key or str(avg_key).startswith("<"):
+        logger.warning(
+            "Offline pipeline: missing average most-liked embedding key; "
+            "skipping query embedding export and ANN similarity Parquet."
+        )
+        return outcome
+
+    avg_df = s3.read_parquet_from_s3(avg_key)
+    if avg_df is None or avg_df.empty:
+        logger.warning(
+            f"Offline pipeline: could not load centroid Parquet at {avg_key}."
+        )
+        return outcome
+
+    centroid_vec, source_uris = _centroid_and_uris_from_average_parquet_df(avg_df)
+    query_key = os.path.join(
+        vector_embeddings_root_s3_key,
+        "query_embeddings",
+        DEFAULT_EMBEDDING_SCHEMA_VERSION,
+        f"{ts}.json",
+    )
+    query_model = global_centroid_to_query_embedding_model(
+        centroid=centroid_vec,
+        source_post_uris=source_uris,
+        source_artifact_key=avg_key,
+        embedding_model=DEFAULT_EMBEDDING_MODEL_NAME,
+        embedding_model_revision=DEFAULT_EMBEDDING_MODEL_REVISION,
+        insert_timestamp=ts,
+        embedding_schema_version=DEFAULT_EMBEDDING_SCHEMA_VERSION,
+    )
+    s3.write_dict_json_to_s3(query_model.model_dump(), query_key)
+    logger.info(f"Offline pipeline: wrote query embedding artifact key={query_key}")
+    outcome["query_embedding_key"] = query_key
+
+    backend = load_ann_index_backend_from_s3(s3, session=ann_session)
+    uri_order = load_uri_order_from_mapping_parquet(s3, ann_session.uri_mapping_s3_key)
+    k_req = ann_materialization_top_k or DEFAULT_ANN_MATERIALIZATION_TOP_K
+    top_k = min(k_req, max(len(uri_order), 1))
+
+    similarity_models = materialize_ann_backend_query(
+        backend=backend,
+        query_vector=centroid_vec,
+        uri_by_ann_row=uri_order,
+        top_k=top_k,
+        insert_timestamp=ts,
+        query_source_s3_key=query_key,
+    )
+    ann_similarity_key = os.path.join(
+        vector_embeddings_root_s3_key,
+        "similarity_scores",
+        f"{ts}_ann_topk.parquet",
+    )
+    s3.write_dicts_parquet_to_s3(
+        [m.model_dump() for m in similarity_models],
+        ann_similarity_key,
+    )
+    logger.info(
+        f"Offline pipeline: wrote {len(similarity_models)} ANN similarity rows to "
+        f"key={ann_similarity_key}"
+    )
+    outcome["ann_similarity_scores_key"] = ann_similarity_key
+    outcome["ann_similarity_row_count"] = len(similarity_models)
+
+    return outcome
 
 
 def get_posts_to_embed() -> list[FilteredPreprocessedPostModel]:
@@ -288,7 +452,7 @@ def _legacy_embedding_row(
 
 
 @track_performance
-def do_vector_embeddings():
+def do_vector_embeddings() -> dict | None:
     """Generate vector embeddings for posts and store them in S3."""
     posts_to_embed: list[FilteredPreprocessedPostModel] = get_posts_to_embed()
     versioned_embedded = _already_embedded_uris_for_current_encoder()
@@ -325,7 +489,7 @@ def do_vector_embeddings():
     )
     if not res:
         logger.info("No embeddings to export.")
-        return
+        return None
 
     # export embeddings and similarity scores
     in_network_user_activity_embeddings: torch.Tensor = res[
@@ -475,7 +639,8 @@ def do_vector_embeddings():
         },
     }
     insert_embedding_session(labeling_session)
+    return labeling_session
 
 
 if __name__ == "__main__":
-    do_vector_embeddings()
+    run_vector_embedding_offline_pipeline()

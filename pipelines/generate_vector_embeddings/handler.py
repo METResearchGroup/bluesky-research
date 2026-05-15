@@ -2,19 +2,21 @@ import json
 import traceback
 
 from lib.log.logger import get_logger
-from services.generate_vector_embeddings.helper import do_vector_embeddings
+from services.generate_vector_embeddings.helper import (
+    run_vector_embedding_offline_pipeline,
+)
 
 logger = get_logger(__name__)
 
 
 def lambda_handler(event, context):
-    """Offline batch job: loads the Transformer lazily at runtime, not at import.
+    """Offline batch job: embeddings, ANN index, query vectors, ANN similarity rows.
 
-    Feed API paths must not call into embedding generation.
+    Feed API paths must not call into this pipeline.
     """
     try:
         logger.info("Starting vector embedding generation.")
-        do_vector_embeddings()
+        run_vector_embedding_offline_pipeline()
         logger.info("Completed vector embedding generation.")
         return {
             "statusCode": 200,
