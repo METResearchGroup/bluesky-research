@@ -8,6 +8,10 @@ logger = get_logger(__name__)
 
 
 def lambda_handler(event, context):
+    """Offline batch job: loads the Transformer lazily at runtime, not at import.
+
+    Feed API paths must not call into embedding generation.
+    """
     try:
         logger.info("Starting vector embedding generation.")
         do_vector_embeddings()
