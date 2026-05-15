@@ -9,9 +9,13 @@ Unifies results from the latest integration runs into a single downstream repres
 | File | Description |
 |------|-------------|
 | `helper.py` | Loads latest inputs (including optional `backfill_period` / `backfill_duration`), merges enrichment fields by `uri`, filters out URIs already in `consolidated_enriched_post_records`, partitions export by `consolidation_timestamp`, appends DynamoDB sessions. |
-| `loaders.py` | Loads preprocessed posts and ML inference frames from `lib.db.manage_local_data`, similarity rows from Athena, converts DataFrames to Pydantic models. |
+| `loaders.py` | Loads preprocessed posts and ML inference frames from `lib.db.manage_local_data`, similarity rows from Athena (`post_cosine_similarity_scores`; see Similarity inputs below), converts DataFrames to Pydantic models. |
 | `models.py` | `ConsolidatedEnrichedPostModel` schema (firehose vs most_liked `source`, all merged label/similarity fields). |
 | `load_data.py` | Thin `load_enriched_posts()` helper for `rank_score_feeds` and tests. |
+
+## Similarity inputs
+
+Athena `post_cosine_similarity_scores` scans `vector_embeddings/similarity_scores/`. That prefix may contain multiple Parquet objects (legacy exact-cosine batch exports plus `{timestamp}_ann_topk.parquet` from the offline ANN materializer). `helper.py` builds `similarity_dict: dict[str, PostSimilarityScoreModel]` from query rows—duplicate `uri` keys retain whichever row appears last in the iteration order returned by Athena/pandas, so overlapping shards warrant caution during audits.
 
 ## How the key files relate
 
@@ -72,6 +76,7 @@ flowchart TB
 ## Related
 
 - [`services/rank_score_feeds/`](../../services/rank_score_feeds/README.md) — loads consolidated enriched posts for feed ranking.
+- [`services/generate_vector_embeddings/README.md`](../../services/generate_vector_embeddings/README.md) — offline embeddings and `similarity_scores/` Parquet producers (exact batch rows vs `_ann_topk` ANN materialization).
 
 ## Tests
 
