@@ -79,6 +79,7 @@ ml = [
     "scikit-learn>=1.6.1",
     "scipy>=1.15.1",
     "tokenizers>=0.19.1",
+    "faiss-cpu>=1.9.0",
 ]
 
 # Topic Modeling and Analysis
