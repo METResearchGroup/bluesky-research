@@ -104,12 +104,19 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-  EMB[generate_vector_embeddings]
+  GV[generate_vector_embeddings task]
+  H[handler.run_vector_embedding_offline_pipeline]
+  DO[do_vector_embeddings<br/>Torch embeddings + legacy Parquet]
+  OFF[ANN index query embedding<br/>ann_topk similarity Parquet]
+
+  GV --> H
+  H --> DO
+  DO --> OFF
 ```
 
 | Prefect task | Purpose | Primary `services/` package | README |
 | --- | --- | --- | --- |
-| `generate_vector_embeddings` | GPU SLURM job emitting transformer embeddings / similarity-facing features (`pipelines/generate_vector_embeddings/` imports `services.generate_vector_embeddings.helper`). | `services/generate_vector_embeddings/` *(helper + models; no README)* | [Pipeline README](../pipelines/generate_vector_embeddings/README.md) |
+| `generate_vector_embeddings` | Offline batch: lazy Torch embeddings from preprocessed posts; versioned + legacy S3 Parquet; DynamoDB `vector_embedding_sessions`; FAISS corpus index; query-vector JSON; ANN materialized similarity rows ([`pipelines/generate_vector_embeddings/`](../pipelines/generate_vector_embeddings/) → `services.generate_vector_embeddings.helper`). | [`generate_vector_embeddings/`](generate_vector_embeddings/README.md) | [`generate_vector_embeddings/README.md`](generate_vector_embeddings/README.md), [pipeline README](../pipelines/generate_vector_embeddings/README.md) |
 
 ---
 
