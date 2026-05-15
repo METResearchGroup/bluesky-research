@@ -49,7 +49,7 @@ The system is organized around seven workflows (each managed by a DAG):
 1. Sync pipeline: captures Bluesky firehose records and persists streamed batches.
 2. Integrations sync pipeline: pulls curated Bluesky trending and most-liked feeds to supplement firehose capture.
 3. Production data pipeline: preprocesses raw records, fans out classifier and integration jobs, and consolidates enrichment outputs.
-4. Vector embeddings pipeline: offline Transformer embeddings, FAISS corpus index, query-vector export, and similarity Parquet for Athena (no request-time inference in feed serving).
+4. Vector embeddings pipeline: offline Transformer embeddings, FAISS corpus index, query-vector export, and similarity Parquet for Athena.
 5. Recommendation pipeline: ranks and reranks candidate posts and exports personalized feeds.
 6. Compaction pipeline: rewrites partitioned service exports and snapshots designated data trees.
 7. Analytics pipeline: compacts study telemetry and aggregates participant activity tables for analysis.
@@ -100,7 +100,7 @@ Use these documents as the next layer of detail:
 - `pipelines/README.md`: job directories and their corresponding service packages.
 - `feed_api/README.md`: Bluesky feed generator API and session logging flow.
 - `terraform/README.md`: infrastructure-as-code and hybrid AWS/on-prem context.
-- `docs/runbooks/services/`: operational runbooks for selected services (including [`generate_vector_embeddings`](docs/runbooks/services/generate_vector_embeddings.md)).
+- `docs/runbooks/services/`: operational runbooks for selected services.
 - [`docs/runbooks/SETUP_REPO.md`](docs/runbooks/SETUP_REPO.md): local setup, dependencies, and `.env` configuration.
 
 ## License
