@@ -4,12 +4,6 @@
 
 Offline batch pipeline only. Computes Transformer embeddings for new preprocessed posts, writes versioned Parquet and legacy Athena-compatible artifacts to S3, rebuilds a FAISS corpus index from cached embeddings, exports a global query vector (most-liked centroid), and materializes ANN retrieval similarity rows still shaped as `PostSimilarityScoreModel` for Athena (`post_cosine_similarity_scores`).
 
-### Invariant
-
-Feed serving, `feed_api`, and request handlers must not import embedding generation paths or load Hugging Face weights at request time.
-
-Orchestration: `run_vector_embedding_offline_pipeline()` in [`helper.py`](helper.py) (called from [`pipelines/generate_vector_embeddings/handler.py`](../../pipelines/generate_vector_embeddings/handler.py)); Prefect flow [`vector_embeddings_pipeline.py`](../../orchestration/vector_embeddings_pipeline.py).
-
 ## Key files
 
 | File | Description |
@@ -23,51 +17,100 @@ Orchestration: `run_vector_embedding_offline_pipeline()` in [`helper.py`](helper
 
 ## How the pieces relate
 
+Overview below; the next four figures zoom into trigger chain, in-process phases, S3 layout, and DynamoDB bookkeeping.
+
+### Overview
+
+```mermaid
+flowchart LR
+  subgraph orch [Orchestration]
+    P["Prefect task<br/>generate_vector_embeddings"]
+  end
+  subgraph entry [Pipeline entry]
+    H["pipelines/generate_vector_embeddings<br/>lambda_handler"]
+  end
+  subgraph svc [Service]
+    R["run_vector_embedding_offline_pipeline"]
+  end
+  subgraph out [Outputs]
+    S3["S3<br/>vector_embeddings/"]
+    DDB["DynamoDB<br/>vector_embedding_sessions"]
+  end
+  P --> H --> R
+  R --> S3
+  R --> DDB
+```
+
+### Trigger and entrypoint
+
+```mermaid
+flowchart LR
+  GV["Prefect: vector embeddings pipeline<br/>task generate_vector_embeddings"]
+  HD["handler.lambda_handler"]
+  RUN["run_vector_embedding_offline_pipeline()"]
+  GV --> HD --> RUN
+```
+
+### Pipeline phases (control flow)
+
+Linear order inside `run_vector_embedding_offline_pipeline()`. Phase 2 scans all versioned embedding Parquet under the active schema prefix. Phase 3 loads the latest average-most-liked Parquet and writes query JSON. Phase 4 loads the FAISS artifacts from phase 2 and reuses the same centroid vector in memory (see S3 artifact map).
+
+```mermaid
+flowchart LR
+  P1["Phase 1 — embeddings<br/>do_vector_embeddings<br/>→ embedding_generation"]
+  P2["Phase 2 — ANN corpus<br/>ann_index"]
+  P3["Phase 3 — query vector<br/>profile_vectors"]
+  P4["Phase 4 — ANN similarity rows<br/>similarity_materialization"]
+  P1 --> P2 --> P3 --> P4
+```
+
+### S3 artifact map (data plane)
+
+Solid arrows are writes. Dashed edges are reads (scan versioned embedding Parquet for the corpus index, load average-most-liked Parquet for the centroid, load ANN index + URI mapping for search).
+
 ```mermaid
 flowchart TB
-  subgraph prefect [Vector embeddings pipeline]
-    GV[generate_vector_embeddings task]
+  subgraph p1 [Embedding phase writes]
+    PE["post_embeddings/{embedding_schema_version}/<br/>versioned Parquet batches"]
+    LEG["Legacy prefixes:<br/>in_network_post_embeddings,<br/>most_liked_post_embeddings,<br/>similarity_scores (exact batches)"]
+    AVG["average_most_liked_feed_embeddings"]
   end
-  subgraph entry [pipelines/generate_vector_embeddings]
-    HD[handler.lambda_handler]
+  subgraph p2 [ANN build writes]
+    IDX["ann_indices/{embedding_schema_version}/{timestamp}/<br/>index + uri_mapping + session JSON"]
   end
-  subgraph svc [services/generate_vector_embeddings]
-    RUN[run_vector_embedding_offline_pipeline]
-    DO[do_vector_embeddings]
-    EG[embedding_generation]
-    ANN[ann_index]
-    SIM[similarity_materialization]
-    PROF[profile_vectors]
-    RUN --> DO
-    RUN --> ANN
-    RUN --> SIM
-    RUN --> PROF
-    DO --> EG
+  subgraph p3 [Query export writes]
+    QRY["query_embeddings/{embedding_schema_version}/{timestamp}.json"]
   end
-  subgraph artifacts [S3 vector_embeddings]
-    PE["post_embeddings/{schema}/\n(versioned Parquet)"]
-    LEG["in_network_post_embeddings,\nmost_liked_post_embeddings,\nlegacy similarity_scores"]
-    AVG[average_most_liked_feed_embeddings]
-    IDX["ann_indices/{schema}/{ts}/\nindex + uri_mapping + session JSON"]
-    QRY["query_embeddings/{schema}/{ts}.json"]
-    ANN_SIM["similarity_scores/{ts}_ann_topk.parquet"]
+  subgraph p4 [Materialization writes]
+    TOPK["similarity_scores/{timestamp}_ann_topk.parquet"]
   end
-  subgraph meta [Bookkeeping]
-    DDB[(DynamoDB vector_embedding_sessions)]
-  end
-  GV --> HD
-  HD --> RUN
-  DO --> PE
-  DO --> LEG
-  DO --> AVG
+  P1R["Phase 1 runner<br/>do_vector_embeddings"]
+  P2R["Phase 2<br/>ann_index"]
+  P3R["Phase 3<br/>profile_vectors"]
+  P4R["Phase 4<br/>similarity_materialization"]
+  P1R --> PE
+  P1R --> LEG
+  P1R --> AVG
+  P2R -. scan Parquet .-> PE
+  P2R --> IDX
+  P3R --> QRY
+  P3R -. load average Parquet .-> AVG
+  P4R --> TOPK
+  P4R -. load index + URI mapping .-> IDX
+  P4R -. same centroid as phase 3 .-> AVG
+```
+
+Phase 4 keeps `query_source_s3_key` pointing at the phase 3 JSON for row metadata; it does not re-read that JSON to score posts.
+
+### Session bookkeeping
+
+Written during the embedding phase only (`do_vector_embeddings`), not by ANN rebuild or materialization.
+
+```mermaid
+flowchart LR
+  DO["do_vector_embeddings()"]
+  DDB[("DynamoDB table<br/>vector_embedding_sessions")]
   DO --> DDB
-  ANN --> PE
-  ANN --> IDX
-  PROF --> AVG
-  PROF --> QRY
-  SIM --> IDX
-  SIM --> QRY
-  SIM --> ANN_SIM
 ```
 
 ## S3 layout (high level)
