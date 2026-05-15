@@ -83,7 +83,7 @@ flowchart TB
   PARQ["write_preprocessed_posts_to_parquet<br/>scripts/preprocess_raw_data"]
   DS["preprocessed_posts dataset<br/>lib/db/service_constants.py"]
   SQL["lib/db/sql/preprocessing_database.py<br/>FilteredPreprocessedPostModel"]
-  ML["generate_vector_embeddings,<br/>consolidate_enrichment_integrations,<br/>pipelines consuming preprocessed_posts"]
+  ML["offline embeddings ANN similarity,<br/>consolidate_enrichment_integrations,<br/>pipelines consuming preprocessed_posts"]
 
   OUTQ --> PARQ
   PARQ --> DS

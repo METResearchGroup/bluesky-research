@@ -20,12 +20,14 @@ This repo provides the end-to-end app structure for testing feed-ranking algorit
 flowchart LR
   B[Bluesky firehose and APIs] --> S[Sync pipelines]
   S --> P[Preprocessing and enrichment]
-  P --> M[ML classifiers and embeddings]
+  P --> M[ML classifiers]
+  P --> V[Offline embeddings FAISS ANN similarity artifacts]
   M --> R[Feed ranking]
+  V --> D[S3 / Parquet / Athena]
   R --> A[Feed API]
   A --> U[Bluesky users]
   A --> L[Session logs]
-  P --> D[S3 / Parquet / Athena]
+  P --> D
   R --> D
   L --> D
   D --> AN[Analysis and reports]
@@ -33,24 +35,24 @@ flowchart LR
 
 Production work is coordinated through a hybrid research infrastructure:
 
-- **Prefect** defines the high-level DAGs in `orchestration/`.
-- **SLURM** runs scheduled jobs on the Quest HPC cluster.
-- **Pipeline handlers** in `pipelines/` provide job entrypoints.
-- **Service modules** in `services/` contain the core application logic.
-- **AWS/S3/Athena** provide storage and analytical query infrastructure.
-- **FastAPI** powers the Bluesky feed generator API in `feed_api/`.
+- Prefect defines the high-level DAGs in `orchestration/`.
+- SLURM runs scheduled jobs on the Quest HPC cluster.
+- Pipeline handlers in `pipelines/` provide job entrypoints.
+- Service modules in `services/` contain the core application logic.
+- AWS/S3/Athena provide storage and analytical query infrastructure.
+- FastAPI powers the Bluesky feed generator API in `feed_api/`.
 
 ## Data Flow
 
 The system is organized around seven workflows (each managed by a DAG):
 
-1. **Sync pipeline**: captures Bluesky firehose records and persists streamed batches.
-2. **Integrations sync pipeline**: pulls curated Bluesky trending and most-liked feeds to supplement firehose capture.
-3. **Production data pipeline**: preprocesses raw records, fans out classifier and integration jobs, and consolidates enrichment outputs.
-4. **Vector embeddings pipeline**: generates transformer embeddings and similarity-facing post features.
-5. **Recommendation pipeline**: ranks and reranks candidate posts and exports personalized feeds.
-6. **Compaction pipeline**: rewrites partitioned service exports and snapshots designated data trees.
-7. **Analytics pipeline**: compacts study telemetry and aggregates participant activity tables for analysis.
+1. Sync pipeline: captures Bluesky firehose records and persists streamed batches.
+2. Integrations sync pipeline: pulls curated Bluesky trending and most-liked feeds to supplement firehose capture.
+3. Production data pipeline: preprocesses raw records, fans out classifier and integration jobs, and consolidates enrichment outputs.
+4. Vector embeddings pipeline: offline Transformer embeddings, FAISS corpus index, query-vector export, and similarity Parquet for Athena (no request-time inference in feed serving).
+5. Recommendation pipeline: ranks and reranks candidate posts and exports personalized feeds.
+6. Compaction pipeline: rewrites partitioned service exports and snapshots designated data trees.
+7. Analytics pipeline: compacts study telemetry and aggregates participant activity tables for analysis.
 
 ## Repository Map
 
@@ -71,9 +73,9 @@ The system is organized around seven workflows (each managed by a DAG):
 
 ## Technical Details
 
-- **Design philosophy:** The repo splits orchestration (`orchestration/` Prefect flows), batch entrypoints (`pipelines/`), application logic (`services/`), and the feed surface (`feed_api/`). Ingestion, enrichment, ranking, serving, and logging are separate stages in that pipeline.
-- **Hybrid architecture:** Prefect-defined DAGs coordinate work across SLURM-backed HPC for heavy jobs and AWS primitives (S3, Parquet, Athena) for durable storage and analytical query, with FastAPI handling Bluesky-compatible feed delivery.
-- **What the build unlocked:** It made a preregistered field experiment possible on an open social graph—assigning users to known ranking policies, recording what they were actually shown, and connecting that exposure stream to engagement and survey outcomes for analysis that does not rely on inferring the algorithm from the outside.
+- Design philosophy: The repo splits orchestration (`orchestration/` Prefect flows), batch entrypoints (`pipelines/`), application logic (`services/`), and the feed surface (`feed_api/`). Ingestion, enrichment, ranking, serving, and logging are separate stages in that pipeline.
+- Hybrid architecture: Prefect-defined DAGs coordinate work across SLURM-backed HPC for heavy jobs and AWS primitives (S3, Parquet, Athena) for durable storage and analytical query, with FastAPI handling Bluesky-compatible feed delivery.
+- What the build unlocked: It made a preregistered field experiment possible on an open social graph—assigning users to known ranking policies, recording what they were actually shown, and connecting that exposure stream to engagement and survey outcomes for analysis that does not rely on inferring the algorithm from the outside.
 
 ## Setup
 
@@ -98,7 +100,7 @@ Use these documents as the next layer of detail:
 - `pipelines/README.md`: job directories and their corresponding service packages.
 - `feed_api/README.md`: Bluesky feed generator API and session logging flow.
 - `terraform/README.md`: infrastructure-as-code and hybrid AWS/on-prem context.
-- `docs/runbooks/services/`: operational runbooks for selected services.
+- `docs/runbooks/services/`: operational runbooks for selected services (including [`generate_vector_embeddings`](docs/runbooks/services/generate_vector_embeddings.md)).
 - [`docs/runbooks/SETUP_REPO.md`](docs/runbooks/SETUP_REPO.md): local setup, dependencies, and `.env` configuration.
 
 ## License

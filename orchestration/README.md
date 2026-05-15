@@ -92,7 +92,7 @@ flowchart TD
 
 ### 4. Vector embeddings pipeline
 
-Runs GPU-backed post embedding generation from preprocessed material. No `submit_*` orchestration shell script ships next to this flow; run [`vector_embeddings_pipeline.py`](vector_embeddings_pipeline.py) on the cluster like the other entrypoints or keep it on Prefect `serve()`.
+Runs offline embedding generation from preprocessed material (lazy Torch/Transformers load), then FAISS ANN rebuild, query-vector export, and ANN similarity Parquet under the same `vector_embeddings/similarity_scores/` prefix as legacy exports. Workers are typically GPU-capable but may CPU-fallback unless `VECTOR_EMBEDDINGS_REQUIRE_GPU` is set. No `submit_*` orchestration shell script ships next to this flow; run [`vector_embeddings_pipeline.py`](vector_embeddings_pipeline.py) on the cluster like the other entrypoints or keep it on Prefect `serve()`.
 
 | Prefect flow | SLURM trigger |
 | --- | --- |
@@ -100,7 +100,14 @@ Runs GPU-backed post embedding generation from preprocessed material. No `submit
 
 ```mermaid
 flowchart TD
-  EMB[generate_vector_embeddings]
+  GV[generate_vector_embeddings]
+  H[handler pipeline]
+  DO[do_vector_embeddings]
+  OFF[ANN index + query JSON + ann_topk scores]
+
+  GV --> H
+  H --> DO
+  DO --> OFF
 ```
 
 ---
