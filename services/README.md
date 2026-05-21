@@ -104,14 +104,11 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-  GV[generate_vector_embeddings task]
-  H[handler.run_vector_embedding_offline_pipeline]
-  DO[do_vector_embeddings<br/>Torch embeddings + legacy Parquet]
-  OFF[ANN index query embedding<br/>ann_topk similarity Parquet]
+  LOAD[load preprocessed posts]
+  GEN[generate vector embeddings]
+  CONSOL[consolidate_enrichment_integrations loads latest embeddings]
 
-  GV --> H
-  H --> DO
-  DO --> OFF
+  LOAD --> GEN --> CONSOL
 ```
 
 | Prefect task | Purpose | Primary `services/` package | README |

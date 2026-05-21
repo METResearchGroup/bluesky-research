@@ -19,18 +19,17 @@ This repo provides the end-to-end app structure for testing feed-ranking algorit
 ```mermaid
 flowchart LR
   B[Bluesky firehose and APIs] --> S[Sync pipelines]
-  S --> P[Preprocessing and enrichment]
-  P --> M[ML classifiers]
-  P --> V[Offline embeddings FAISS ANN similarity artifacts]
-  M --> R[Feed ranking]
-  V --> D[S3 / Parquet / Athena]
+  S --> P[Preprocessing]
+  P --> C[Fan-out to integrations]
+  C --> M[ML classifiers]
+  C --> SP[Superposter calculation]
+  C --> V[Offline FAISS embeddings]
+  M --> U[Unify integrations]
+  SP --> U
+  V --> U
+  U --> R[Generate feed ranking algorithms]
   R --> A[Feed API]
-  A --> U[Bluesky users]
-  A --> L[Session logs]
-  P --> D
-  R --> D
-  L --> D
-  D --> AN[Analysis and reports]
+  A --> U2[Bluesky users]
 ```
 
 Production work is coordinated through a hybrid research infrastructure:
@@ -50,7 +49,7 @@ The system is organized around seven workflows (each managed by a DAG):
 2. Integrations sync pipeline: pulls curated Bluesky trending and most-liked feeds to supplement firehose capture.
 3. Production data pipeline: preprocesses raw records, fans out classifier and integration jobs, and consolidates enrichment outputs.
 4. Vector embeddings pipeline: offline Transformer embeddings, FAISS corpus index, query-vector export, and similarity Parquet for Athena.
-5. Recommendation pipeline: ranks and reranks candidate posts and exports personalized feeds.
+5. Recommendation pipeline: generates candidates, then ranks and reranks candidate posts and exports personalized feeds.
 6. Compaction pipeline: rewrites partitioned service exports and snapshots designated data trees.
 7. Analytics pipeline: compacts study telemetry and aggregates participant activity tables for analysis.
 
