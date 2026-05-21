@@ -119,10 +119,15 @@ flowchart TD
 
 ### 5. Recommendation pipeline
 
-
 ```mermaid
 flowchart TD
-  RANK[rank_score_feeds]
+  LOAD[load latest preprocessed posts + integrations]
+  GEN_CANDIDATES[generate candidate posts]
+  RANK[rank feeds]
+  RERANK_FILTER[rerank + filter]
+  WRITE[write feeds to S3]
+
+  LOAD --> GEN_CANDIDATES --> RANK --> RERANK_FILTER --> WRITE
 ```
 
 | Prefect task | Purpose | Primary `services/` package | README |
