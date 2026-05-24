@@ -1,6 +1,6 @@
 """Exports the results of classifying posts."""
 
-from typing import Any, Optional, Sequence, TypeVar
+from typing import Any, Iterable, Optional, Sequence, TypeVar
 
 from lib.db.queue import Queue
 from lib.datetime_utils import generate_current_datetime_str
@@ -175,9 +175,34 @@ def write_posts_to_cache(
 
     successfully_labeled_batch_ids = set(post.batch_id for post in posts)
 
-    in_queue = (
-        input_queue if input_queue is not None else _default_input_queue(inference_type)
+    write_posts_to_output_queue_only(
+        inference_type=inference_type,
+        posts=posts,
+        batch_size=batch_size,
+        output_queue=output_queue,
     )
+    delete_batch_ids_from_input_queue(
+        inference_type=inference_type,
+        batch_ids=successfully_labeled_batch_ids,
+        input_queue=input_queue,
+    )
+
+
+def write_posts_to_output_queue_only(
+    inference_type: QueueInferenceType,
+    posts: list[LabelWithBatchId],
+    batch_size: Optional[int] = None,
+    output_queue: Optional[Queue] = None,
+) -> None:
+    """Write classified posts to the output queue only (no input-queue deletion).
+
+    This is intended for minibatch workflows where deletion must be deferred until the
+    whole input-queue batch is fully processed.
+    """
+    if not posts:
+        logger.info("No posts to write to output queue.")
+        return
+
     out_queue = (
         output_queue
         if output_queue is not None
@@ -192,12 +217,29 @@ def write_posts_to_cache(
         items=posts_dicts,
         batch_size=batch_size,
     )
-    logger.info(
-        f"Deleting {len(successfully_labeled_batch_ids)} batch IDs from the input queue."
+
+
+def delete_batch_ids_from_input_queue(
+    inference_type: QueueInferenceType,
+    batch_ids: Iterable[int],
+    input_queue: Optional[Queue] = None,
+) -> int:
+    """Delete one or more input-queue batch IDs for an inference type.
+
+    Returns:
+        Number of queue rows deleted.
+    """
+    if not batch_ids:
+        return 0
+
+    in_queue = (
+        input_queue if input_queue is not None else _default_input_queue(inference_type)
     )
-    in_queue.batch_delete_items_by_ids(
-        ids=list(successfully_labeled_batch_ids),
-    )
+    ids = list(set(batch_ids))
+    logger.info(f"Deleting {len(ids)} batch IDs from the input queue.")
+    deleted = in_queue.batch_delete_items_by_ids(ids=ids)
+    logger.info(f"Deleted {deleted} batch IDs from the input queue.")
+    return deleted
 
 
 # TODO: add unit tests.

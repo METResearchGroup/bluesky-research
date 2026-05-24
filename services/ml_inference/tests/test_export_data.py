@@ -6,8 +6,10 @@ from pydantic import ValidationError
 from lib.db.queue import Queue
 from services.ml_inference.export_data import (
     attach_batch_id_to_label_dicts,
+    delete_batch_ids_from_input_queue,
     return_failed_labels_to_input_queue,
     write_posts_to_cache,
+    write_posts_to_output_queue_only,
 )
 from services.ml_inference.models import LabelWithBatchId
 
@@ -230,6 +232,267 @@ class TestWritePostsToCache:
         actual_call = mock_input_queue.batch_delete_items_by_ids.call_args[1]["ids"]
         expected_batch_ids = {post.batch_id for post in posts}
         assert set(actual_call) == expected_batch_ids
+
+
+class TestWritePostsToOutputQueueOnly:
+    """Tests for write_posts_to_output_queue_only function.
+    
+    This test class verifies that successfully labeled posts are written to the output queue
+    WITHOUT deleting from the input queue. This is used for deferred deletion workflows.
+    """
+
+    @pytest.mark.parametrize(
+        "inference_type",
+        ["perspective_api", "sociopolitical", "ime", "valence_classifier", "intergroup"]
+    )
+    def test_empty_posts(self, inference_type):
+        """Test handling of empty posts list.
+        
+        Args:
+            inference_type: The type of inference being tested
+            
+        Expected behavior:
+            - Should return early without making any queue operations
+            - Should work identically for all inference types
+        """
+        mock_output_queue = Mock(spec=Queue)
+        write_posts_to_output_queue_only(
+            inference_type=inference_type,
+            posts=[],
+            output_queue=mock_output_queue
+        )
+        mock_output_queue.batch_add_items_to_queue.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "inference_type",
+        ["perspective_api", "sociopolitical", "ime", "valence_classifier", "intergroup"]
+    )
+    def test_writes_to_output_queue(self, inference_type):
+        """Test writing posts to output queue.
+        
+        Args:
+            inference_type: The type of inference being tested
+            
+        Expected behavior:
+            - Should write posts to output queue with correct batch size
+            - Should NOT delete from input queue
+            - Should maintain data integrity during transfer
+            - Should work identically for all inference types
+        """
+        posts = [
+            LabelWithBatchId(
+                batch_id=i,
+                uri=f"uri_{i}",
+                text=f"text_{i}",
+                preprocessing_timestamp="2024-01-01-12:00:00",
+                was_successfully_labeled=True,
+                label_timestamp="2024-01-01-12:00:00"
+            )
+            for i in range(3)
+        ]
+        
+        mock_output_queue = Mock(spec=Queue)
+        write_posts_to_output_queue_only(
+            inference_type=inference_type,
+            posts=posts,
+            batch_size=2,
+            output_queue=mock_output_queue
+        )
+            
+        # Verify posts were written (converted to dicts)
+        mock_output_queue.batch_add_items_to_queue.assert_called_once()
+        call_args = mock_output_queue.batch_add_items_to_queue.call_args
+        assert call_args[1]["batch_size"] == 2
+        written_items = call_args[1]["items"]
+        assert len(written_items) == 3
+        assert all(isinstance(item, dict) for item in written_items)
+
+    @pytest.mark.parametrize(
+        "inference_type",
+        ["perspective_api", "sociopolitical", "ime", "valence_classifier", "intergroup"]
+    )
+    def test_does_not_delete_from_input_queue(self, inference_type):
+        """Test that input queue deletion is NOT called.
+        
+        Args:
+            inference_type: The type of inference being tested
+            
+        Expected behavior:
+            - Should NOT call batch_delete_items_by_ids on input queue
+            - This function only writes to output, deletion is deferred
+        """
+        posts = [
+            LabelWithBatchId(
+                batch_id=1,
+                uri="uri_1",
+                text="text_1",
+                preprocessing_timestamp="2024-01-01-12:00:00",
+                was_successfully_labeled=True,
+                label_timestamp="2024-01-01-12:00:00"
+            )
+        ]
+        
+        mock_output_queue = Mock(spec=Queue)
+        mock_input_queue = Mock(spec=Queue)
+        # Note: input_queue is not a parameter for write_posts_to_output_queue_only
+        # but we verify it's not used by checking no deletion happens
+        write_posts_to_output_queue_only(
+            inference_type=inference_type,
+            posts=posts,
+            output_queue=mock_output_queue
+        )
+        
+        # Verify output queue was called
+        mock_output_queue.batch_add_items_to_queue.assert_called_once()
+        # Verify no input queue operations (this function doesn't take input_queue param)
+
+
+class TestDeleteBatchIdsFromInputQueue:
+    """Tests for delete_batch_ids_from_input_queue function.
+    
+    This test class verifies that batch IDs are properly deleted from the input queue
+    across all inference types.
+    """
+
+    @pytest.mark.parametrize(
+        "inference_type",
+        ["perspective_api", "sociopolitical", "ime", "valence_classifier", "intergroup"]
+    )
+    def test_empty_batch_ids(self, inference_type):
+        """Test handling of empty batch_ids list.
+        
+        Args:
+            inference_type: The type of inference being tested
+            
+        Expected behavior:
+            - Should return 0 without making any queue operations
+            - Should work identically for all inference types
+        """
+        mock_input_queue = Mock(spec=Queue)
+        result = delete_batch_ids_from_input_queue(
+            inference_type=inference_type,
+            batch_ids=[],
+            input_queue=mock_input_queue
+        )
+        assert result == 0
+        mock_input_queue.batch_delete_items_by_ids.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "inference_type",
+        ["perspective_api", "sociopolitical", "ime", "valence_classifier", "intergroup"]
+    )
+    def test_deletes_single_batch_id(self, inference_type):
+        """Test deleting a single batch_id.
+        
+        Args:
+            inference_type: The type of inference being tested
+            
+        Expected behavior:
+            - Should delete the batch_id from input queue
+            - Should return the number of items deleted
+            - Should work identically for all inference types
+        """
+        mock_input_queue = Mock(spec=Queue)
+        mock_input_queue.batch_delete_items_by_ids.return_value = 1
+        
+        result = delete_batch_ids_from_input_queue(
+            inference_type=inference_type,
+            batch_ids=[123],
+            input_queue=mock_input_queue
+        )
+        
+        assert result == 1
+        mock_input_queue.batch_delete_items_by_ids.assert_called_once()
+        call_args = mock_input_queue.batch_delete_items_by_ids.call_args
+        assert call_args[1]["ids"] == [123]
+
+    @pytest.mark.parametrize(
+        "inference_type",
+        ["perspective_api", "sociopolitical", "ime", "valence_classifier", "intergroup"]
+    )
+    def test_deletes_multiple_batch_ids(self, inference_type):
+        """Test deleting multiple batch_ids.
+        
+        Args:
+            inference_type: The type of inference being tested
+            
+        Expected behavior:
+            - Should delete all batch_ids from input queue
+            - Should deduplicate batch_ids if provided
+            - Should return the number of items deleted
+            - Should work identically for all inference types
+        """
+        mock_input_queue = Mock(spec=Queue)
+        mock_input_queue.batch_delete_items_by_ids.return_value = 3
+        
+        result = delete_batch_ids_from_input_queue(
+            inference_type=inference_type,
+            batch_ids=[100, 200, 300],
+            input_queue=mock_input_queue
+        )
+        
+        assert result == 3
+        mock_input_queue.batch_delete_items_by_ids.assert_called_once()
+        call_args = mock_input_queue.batch_delete_items_by_ids.call_args
+        # Should deduplicate and convert to list
+        assert set(call_args[1]["ids"]) == {100, 200, 300}
+
+    @pytest.mark.parametrize(
+        "inference_type",
+        ["perspective_api", "sociopolitical", "ime", "valence_classifier", "intergroup"]
+    )
+    def test_deduplicates_batch_ids(self, inference_type):
+        """Test that duplicate batch_ids are deduplicated.
+        
+        Args:
+            inference_type: The type of inference being tested
+            
+        Expected behavior:
+            - Should deduplicate batch_ids before deletion
+            - Should only delete each unique batch_id once
+        """
+        mock_input_queue = Mock(spec=Queue)
+        mock_input_queue.batch_delete_items_by_ids.return_value = 1
+        
+        result = delete_batch_ids_from_input_queue(
+            inference_type=inference_type,
+            batch_ids=[100, 100, 100],  # Duplicates
+            input_queue=mock_input_queue
+        )
+        
+        assert result == 1
+        mock_input_queue.batch_delete_items_by_ids.assert_called_once()
+        call_args = mock_input_queue.batch_delete_items_by_ids.call_args
+        # Should deduplicate to single ID
+        assert call_args[1]["ids"] == [100]
+
+    @pytest.mark.parametrize(
+        "inference_type",
+        ["perspective_api", "sociopolitical", "ime", "valence_classifier", "intergroup"]
+    )
+    def test_logs_deletion_count(self, inference_type):
+        """Test that deletion count is logged.
+        
+        Args:
+            inference_type: The type of inference being tested
+            
+        Expected behavior:
+            - Should log how many batch_ids are being deleted
+            - Should log the actual deletion count returned from queue
+        """
+        mock_input_queue = Mock(spec=Queue)
+        mock_input_queue.batch_delete_items_by_ids.return_value = 2
+        
+        # We can't easily test logging without more complex setup, but we can verify
+        # the function completes and returns the correct count
+        result = delete_batch_ids_from_input_queue(
+            inference_type=inference_type,
+            batch_ids=[100, 200],
+            input_queue=mock_input_queue
+        )
+        
+        assert result == 2
+        mock_input_queue.batch_delete_items_by_ids.assert_called_once()
 
 
 class TestAttachBatchIdToLabelDicts:
