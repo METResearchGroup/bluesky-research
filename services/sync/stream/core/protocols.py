@@ -8,7 +8,7 @@ All major dependencies are defined as protocols to enable:
 
 from __future__ import annotations
 
-from typing import Protocol, TYPE_CHECKING
+from typing import Protocol, TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -123,12 +123,20 @@ class FileUtilitiesProtocol(Protocol):
     """
 
     # Write operations
-    def write_json(self, path: str, data: dict) -> None:
-        """Write JSON data to file at path."""
+    def write_json(self, path: str, data: Any) -> None:
+        """Write JSON-serializable data to file at path."""
         ...
 
     def write_jsonl(self, path: str, records: list[dict]) -> None:
         """Write JSONL data to file at path."""
+        ...
+
+    def append_record_to_batch(self, directory: str, record: dict) -> None:
+        """Append a record to a batched cache file in a directory."""
+        ...
+
+    def flush_batches(self) -> None:
+        """Flush any buffered batch writes to disk."""
         ...
 
     # Read operations

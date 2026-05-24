@@ -42,6 +42,25 @@ from services.sync.stream.tests.conftest import (
     cleanup_files,
 )
 
+def _json_files_in_dir(directory: str) -> set[str]:
+    if not os.path.exists(directory):
+        return set()
+    return {
+        os.path.join(directory, f)
+        for f in os.listdir(directory)
+        if os.path.isfile(os.path.join(directory, f)) and f.endswith(".json")
+    }
+
+
+def _load_records_from_json_file(path: str) -> list[dict]:
+    with open(path, "r") as f:
+        data = json.load(f)
+    if isinstance(data, list):
+        return [d for d in data if isinstance(d, dict)]
+    if isinstance(data, dict):
+        return [data]
+    return []
+
 
 class TestCacheWriteStudyUserPost:
     """Test cache write flow for study user posts."""
@@ -49,7 +68,11 @@ class TestCacheWriteStudyUserPost:
     def test_study_user_post_creates_cache_file(
         self, mock_post_records_fixture, cache_write_context, path_manager, cleanup_files
     ):
-        """Test that a study user post is written to the correct cache location."""
+        """Test that a study user post is written to the correct cache location.
+
+        Cache writes are batched, so we assert a new batch file appears and
+        contains our record.
+        """
         context = cache_write_context
         
         # Setup: Ensure the author is a study user
@@ -60,30 +83,39 @@ class TestCacheWriteStudyUserPost:
         # Modify post record to have study user as author
         post_record["author"] = study_user_did
         
-        # Expected file path
+        # Expected directory path
         post_uri_suffix = post_record["uri"].split("/")[-1]
         expected_path = path_manager.get_study_user_activity_path(
             operation=Operation.CREATE,
             record_type=RecordType.POST,
         )
-        expected_file = os.path.join(
-            expected_path,
-            f"author_did={study_user_did}_post_uri_suffix={post_uri_suffix}.json"
-        )
+        before_files = _json_files_in_dir(expected_path)
         
         # Execute: Write post to cache
         process_record(context, "posts", post_record, Operation.CREATE)
+        # Force flush to make batching deterministic in tests
+        context.file_utilities.flush_batches()
         
-        # Verify: File exists and contains correct data
-        assert os.path.exists(expected_file), f"Expected file not found: {expected_file}"
-        
-        with open(expected_file, "r") as f:
-            data = json.load(f)
-            assert data["author_did"] == study_user_did
-            assert post_uri_suffix in data["uri"]
+        after_files = _json_files_in_dir(expected_path)
+        created_files = sorted(after_files - before_files)
+        assert created_files, f"Expected at least one new batch file in: {expected_path}"
+
+        # Verify: At least one created file contains our record
+        found = False
+        for fp in created_files:
+            for rec in _load_records_from_json_file(fp):
+                if rec.get("author_did") == study_user_did and post_uri_suffix in str(
+                    rec.get("uri", "")
+                ):
+                    found = True
+                    break
+            if found:
+                break
+        assert found, "Did not find expected post record in created batch files"
         
         # Cleanup
-        cleanup_files(expected_file)
+        for fp in created_files:
+            cleanup_files(fp)
         context.study_user_manager.study_users_dids_set.remove(study_user_did)
 
 
@@ -93,7 +125,11 @@ class TestCacheWriteLikeOnStudyUserPost:
     def test_like_on_study_user_post_creates_nested_cache_file(
         self, mock_like_records_fixture, cache_write_context, path_manager, cleanup_files
     ):
-        """Test that a like on a study user's post is written to nested cache location."""
+        """Test that a like on a study user's post is written to nested cache location.
+
+        Cache writes are batched, so we assert a new batch file appears in the
+        nested directory and contains our record.
+        """
         context = cache_write_context
         
         # Setup: Create a study user post first, then like it
@@ -134,24 +170,31 @@ class TestCacheWriteLikeOnStudyUserPost:
             operation=Operation.CREATE,
             record_type=RecordType.LIKE_ON_USER_POST,
         )
-        expected_file = os.path.join(
-            base_path,
-            post_uri_suffix,
-            f"author_did={like_record['author']}_like_uri_suffix={like_record['uri'].split('/')[-1]}.json"
-        )
+        nested_dir = os.path.join(base_path, post_uri_suffix)
+        before_files = _json_files_in_dir(nested_dir)
         
         # Execute: Write like to cache
         process_record(context, "likes", like_record, Operation.CREATE)
+        # Force flush to make batching deterministic in tests
+        context.file_utilities.flush_batches()
         
-        # Verify: File exists in nested directory
-        assert os.path.exists(expected_file), f"Expected file not found: {expected_file}"
-        
-        with open(expected_file, "r") as f:
-            data = json.load(f)
-            assert liked_post_uri in str(data)
+        after_files = _json_files_in_dir(nested_dir)
+        created_files = sorted(after_files - before_files)
+        assert created_files, f"Expected at least one new batch file in: {nested_dir}"
+
+        found = False
+        for fp in created_files:
+            for rec in _load_records_from_json_file(fp):
+                if liked_post_uri in str(rec):
+                    found = True
+                    break
+            if found:
+                break
+        assert found, "Did not find expected like record in created batch files"
         
         # Cleanup
-        cleanup_files(expected_file)
+        for fp in created_files:
+            cleanup_files(fp)
         context.study_user_manager.study_users_dids_set.remove(study_user_did)
         del context.study_user_manager.post_uri_to_study_user_did_map[
             liked_post_uri
@@ -164,7 +207,11 @@ class TestCacheWriteFollow:
     def test_study_user_follow_creates_cache_file_in_follower_directory(
         self, mock_follow_records_fixture, cache_write_context, path_manager, cleanup_files
     ):
-        """Test that a follow where study user is the follower creates file in follower/ directory."""
+        """Test that a follow where study user is the follower is written in follower/ directory.
+
+        Cache writes are batched, so we assert a new batch file appears and
+        contains our follow record.
+        """
         context = cache_write_context
         
         # Setup: Study user is the follower
@@ -182,24 +229,32 @@ class TestCacheWriteFollow:
             record_type=RecordType.FOLLOW,
             follow_status=FollowStatus.FOLLOWER,
         )
-        expected_file = os.path.join(
-            base_path,
-            f"follower_did={study_user_did}_followee_did={followee_did}.json"
-        )
+        before_files = _json_files_in_dir(base_path)
         
         # Execute: Write follow to cache
         process_record(context, "follows", follow_record, Operation.CREATE)
+        # Force flush to make batching deterministic in tests
+        context.file_utilities.flush_batches()
         
-        # Verify: File exists in follower directory
-        assert os.path.exists(expected_file), f"Expected file not found: {expected_file}"
-        
-        with open(expected_file, "r") as f:
-            data = json.load(f)
-            assert data["follower_did"] == study_user_did
-            assert data["followee_did"] == followee_did
+        after_files = _json_files_in_dir(base_path)
+        created_files = sorted(after_files - before_files)
+        assert created_files, f"Expected at least one new batch file in: {base_path}"
+
+        found = False
+        for fp in created_files:
+            for rec in _load_records_from_json_file(fp):
+                if rec.get("follower_did") == study_user_did and rec.get(
+                    "followee_did"
+                ) == followee_did:
+                    found = True
+                    break
+            if found:
+                break
+        assert found, "Did not find expected follow record in created batch files"
         
         # Cleanup
-        cleanup_files(expected_file)
+        for fp in created_files:
+            cleanup_files(fp)
         context.study_user_manager.study_users_dids_set.remove(study_user_did)
 
 
@@ -209,7 +264,11 @@ class TestCacheWriteInNetworkPost:
     def test_in_network_post_creates_cache_file_in_author_directory(
         self, mock_post_records_fixture, cache_write_context, path_manager, cleanup_files
     ):
-        """Test that an in-network user post is written to author-specific cache location."""
+        """Test that an in-network user post is written to author-specific cache location.
+
+        Cache writes are batched, so we assert a new batch file appears in the
+        author directory and contains our record.
+        """
         context = cache_write_context
         
         # Setup: Author is an in-network user
@@ -228,23 +287,30 @@ class TestCacheWriteInNetworkPost:
             record_type=RecordType.POST,
             author_did=in_network_user_did,
         )
-        expected_file = os.path.join(
-            expected_path,
-            f"author_did={in_network_user_did}_post_uri_suffix={post_uri_suffix}.json"
-        )
+        before_files = _json_files_in_dir(expected_path)
         
         # Execute: Write post to cache
         process_record(context, "posts", post_record, Operation.CREATE)
+        # Force flush to make batching deterministic in tests
+        context.file_utilities.flush_batches()
         
-        # Verify: File exists in author directory
-        assert os.path.exists(expected_file), f"Expected file not found: {expected_file}"
-        
-        with open(expected_file, "r") as f:
-            data = json.load(f)
-            assert data["author_did"] == in_network_user_did
+        after_files = _json_files_in_dir(expected_path)
+        created_files = sorted(after_files - before_files)
+        assert created_files, f"Expected at least one new batch file in: {expected_path}"
+
+        found = False
+        for fp in created_files:
+            for rec in _load_records_from_json_file(fp):
+                if rec.get("author_did") == in_network_user_did:
+                    found = True
+                    break
+            if found:
+                break
+        assert found, "Did not find expected in-network post record in created batch files"
         
         # Cleanup
-        cleanup_files(expected_file)
+        for fp in created_files:
+            cleanup_files(fp)
         context.study_user_manager.in_network_user_dids_set.remove(
             in_network_user_did
         )
